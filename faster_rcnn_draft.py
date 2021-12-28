@@ -18,12 +18,11 @@ K = len(RATIOS) * len(SCALES)
 ANCHORS_COUNT = FEATURE_SIZE * FEATURE_SIZE
 ANCHOR_BOXES_COUNT = ANCHORS_COUNT * K
 
+RPN_SAMPLES = 256
+RPN_POSITIVE_RATIO = 0.5
+RPN_POSITIVE_COUNT = int(RPN_SAMPLES * RPN_POSITIVE_RATIO)
 RPN_POSITIVE_IOU_THRESHOLD = 0.7
 RPN_NEGATIVE_IOU_THRESHOLD = 0.3
-RPN_POSITIVE_RATIO = 0.5
-RPN_SAMPLES = 256
-RPN_POSITIVE_COUNT = int(RPN_SAMPLES * RPN_POSITIVE_RATIO)
-RPN_INPUT_CHANNELS = 512
 RPN_HIDDEN_CHANNELS = 512
 RPN_LAMBDA = 10.0
 
@@ -50,13 +49,15 @@ else:
 
 def show_boxes_and_labels(image, bboxes, labels):
     image_clone = np.copy(image)
+    image_clone = cv2.cvtColor(image_clone, cv2.COLOR_BGR2RGB)
     for i in range(len(bboxes)):
         cv2.rectangle(
             image_clone,
             (bboxes[i][1], bboxes[i][0]),
             (bboxes[i][3], bboxes[i][2]),
             color=(0, 255, 0),
-            thickness=3)
+            thickness=3
+        )
         cv2.putText(
             image_clone,
             str(int(labels[i])),
@@ -83,9 +84,8 @@ def preprocess(image, bboxes, labels):
     return scaled_image, scaled_bboxes, labels
 
 
-img0 = cv2.imread("example.jpg")
-img0 = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
-bbox0 = np.array([[160, 147, 260, 234], [139, 312, 200, 348]])
+img0 = cv2.imread("elephant.jpg")
+bbox0 = np.array([[900, 180, 3700, 2200], [1000, 200, 3800, 2500]])
 labels0 = np.array([1, 1])
 show_boxes_and_labels(img0, bbox0, labels0)
 img, bbox, labels = preprocess(img0, bbox0, labels0)
@@ -95,22 +95,27 @@ show_boxes_and_labels(img, bbox, labels)
 def get_feature_extractor(device):
     model = torchvision.models.vgg16(pretrained=True).to(device)
     features = list(model.features)
-    dummy_image = torch.zeros((1, 3, IMAGE_SIZE[0], IMAGE_SIZE[1])).float()
+    dummy_image = torch.zeros((1, 3, IMAGE_SIZE, IMAGE_SIZE)).float()
     dummy_image = dummy_image.to(device)
+    output_channels = dummy_image.size()[1]
     required_features = []
     for feature in features:
         dummy_image = feature(dummy_image)
         if dummy_image.size()[2] < FEATURE_SIZE:
             break
         required_features.append(feature)
+        output_channels = dummy_image.size()[1]
     extractor = nn.Sequential(*required_features)
-    return extractor
+    return extractor, output_channels
 
 
-feature_extractor = get_feature_extractor(device)
+feature_extractor, out_channels = get_feature_extractor(device)
 transform = transforms.Compose([transforms.ToTensor()])
+# TODO batch_size > 1
 img_tensor = transform(img).to(device).unsqueeze(0)
 out_map = feature_extractor(img_tensor)
+
+print("Output from backbone", out_map.size(), out_channels)
 
 
 def generate_anchors():
@@ -151,16 +156,18 @@ def generate_anchor_boxes(anchors):
 
 
 anchors = generate_anchors()
+print("Anchors", anchors.shape)
 anchor_boxes, index_inside, valid_anchor_boxes = generate_anchor_boxes(anchors)
+print("Anchor boxes", anchor_boxes.shape, valid_anchor_boxes.shape)
 
 
-def calc_ious(bbox, valid_anchor_boxes):
-    ious = np.empty((len(valid_anchor_boxes), 2), dtype=np.float32)
+def calc_ious(bboxes, valid_anchor_boxes):
+    ious = np.empty((len(valid_anchor_boxes), len(bboxes)), dtype=np.float32)
     ious.fill(0)
     for num1, i in enumerate(valid_anchor_boxes):
         ya1, xa1, ya2, xa2 = i
         anchor_area = (ya2 - ya1) * (xa2 - xa1)
-        for num2, j in enumerate(bbox):
+        for num2, j in enumerate(bboxes):
             yb1, xb1, yb2, xb2 = j
             box_area = (yb2 - yb1) * (xb2 - xb1)
             inter_x1 = max([xb1, xa1])
@@ -176,6 +183,10 @@ def calc_ious(bbox, valid_anchor_boxes):
     return ious
 
 
+ious = calc_ious(bbox, valid_anchor_boxes)
+print("IoU", ious.shape)
+
+
 def calc_cls_target(ious, index_inside):
     gt_argmax_ious = ious.argmax(axis=0)
     gt_max_ious = ious[gt_argmax_ious, np.arange(ious.shape[1])]
@@ -183,66 +194,69 @@ def calc_cls_target(ious, index_inside):
     argmax_ious = ious.argmax(axis=1)
     max_ious = ious[np.arange(len(index_inside)), argmax_ious]
 
-    rpn_labels = np.empty((len(index_inside),), dtype=np.int32)
-    rpn_labels.fill(-1)
-    rpn_labels[gt_argmax_ious] = 1
-    rpn_labels[max_ious >= RPN_POSITIVE_IOU_THRESHOLD] = 1
-    rpn_labels[max_ious < RPN_NEGATIVE_IOU_THRESHOLD] = 0
-    return rpn_labels, argmax_ious
+    cls_labels = np.empty((len(index_inside),), dtype=np.int32)
+    cls_labels.fill(-1)
+    cls_labels[gt_argmax_ious] = 1
+    cls_labels[max_ious >= RPN_POSITIVE_IOU_THRESHOLD] = 1
+    cls_labels[max_ious < RPN_NEGATIVE_IOU_THRESHOLD] = 0
+    return cls_labels, argmax_ious
 
 
-def sample_cls_target(rpn_labels):
-    positive_index = np.where(rpn_labels == 1)[0]
+def sample_cls_target(cls_labels):
+    positive_index = np.where(cls_labels == 1)[0]
     if len(positive_index) > RPN_POSITIVE_COUNT:
         disable_index = np.random.choice(positive_index, size=(len(positive_index) - RPN_POSITIVE_COUNT), replace=False)
-        rpn_labels[disable_index] = -1
-    negative_count = RPN_SAMPLES * np.sum(rpn_labels == 1)
-    negative_index = np.where(rpn_labels == 0)[0]
+        cls_labels[disable_index] = -1
+    negative_count = RPN_SAMPLES - np.sum(cls_labels == 1)
+    negative_index = np.where(cls_labels == 0)[0]
     if len(negative_index) > negative_count:
         disable_index = np.random.choice(negative_index, size=(len(negative_index) - negative_count), replace=False)
-        rpn_labels[disable_index] = -1
+        cls_labels[disable_index] = -1
 
 
-def calc_reg_target(max_iou_bbox, valid_anchor_boxes):
+def calc_reg_target(max_iou_bboxes, valid_anchor_boxes):
     height = valid_anchor_boxes[:, 2] - valid_anchor_boxes[:, 0]
     width = valid_anchor_boxes[:, 3] - valid_anchor_boxes[:, 1]
-    ctr_y = valid_anchor_boxes[:, 0] + 0.5 * height
-    ctr_x = valid_anchor_boxes[:, 1] + 0.5 * width
-    base_height = max_iou_bbox[:, 2] - max_iou_bbox[:, 0]
-    base_width = max_iou_bbox[:, 3] - max_iou_bbox[:, 1]
-    base_ctr_y = max_iou_bbox[:, 0] + 0.5 * base_height
-    base_ctr_x = max_iou_bbox[:, 1] + 0.5 * base_width
+    anchor_y = valid_anchor_boxes[:, 0] + 0.5 * height
+    anchor_x = valid_anchor_boxes[:, 1] + 0.5 * width
+    base_height = max_iou_bboxes[:, 2] - max_iou_bboxes[:, 0]
+    base_width = max_iou_bboxes[:, 3] - max_iou_bboxes[:, 1]
+    base_anchor_y = max_iou_bboxes[:, 0] + 0.5 * base_height
+    base_anchor_x = max_iou_bboxes[:, 1] + 0.5 * base_width
     eps = np.finfo(height.dtype).eps
     height = np.maximum(height, eps)
     width = np.maximum(width, eps)
-    dy = (base_ctr_y - ctr_y) / height
-    dx = (base_ctr_x - ctr_x) / width
+    dy = (base_anchor_y - anchor_y) / height
+    dx = (base_anchor_x - anchor_x) / width
     dh = np.log(base_height / height)
     dw = np.log(base_width / width)
-    anchor_locs = np.vstack((dy, dx, dh, dw)).transpose()
-    return anchor_locs
+    reg_labels = np.vstack((dy, dx, dh, dw)).transpose()
+    return reg_labels
 
 
-def rpn_target(bbox, anchor_boxes, index_inside, valid_anchor_boxes):
+def rpn_target(bboxes, anchor_boxes, index_inside, valid_anchor_boxes):
     ious = calc_ious(bbox, valid_anchor_boxes)
-    rpn_labels, argmax_ious = calc_cls_target(ious, index_inside)
-    sample_cls_target(rpn_labels)
-    max_iou_bbox = bbox[argmax_ious]
-    anchor_locs = calc_reg_target(max_iou_bbox, valid_anchor_boxes)
+    cls_labels, argmax_ious = calc_cls_target(ious, index_inside)
+    sample_cls_target(cls_labels)
+    max_iou_bboxes = bboxes[argmax_ious]
+    reg_labels = calc_reg_target(max_iou_bboxes, valid_anchor_boxes)
 
-    anchor_labels = np.empty((len(anchor_boxes),), dtype=rpn_labels.dtype)
+    anchor_labels = np.empty((len(anchor_boxes),), dtype=cls_labels.dtype)
     anchor_labels.fill(-1)
-    anchor_labels[index_inside] = rpn_labels
-    anchor_locations = np.empty((len(anchor_boxes),) + anchor_boxes.shape[1:], dtype=anchor_locs.dtype)
+    anchor_labels[index_inside] = cls_labels
+    anchor_locations = np.empty((len(anchor_boxes), 4), dtype=reg_labels.dtype)
     anchor_locations.fill(0)
-    anchor_locations[index_inside, :] = anchor_locs
+    anchor_locations[index_inside, :] = reg_labels
 
     return anchor_labels, anchor_locations
 
 
 anchor_labels, anchor_locations = rpn_target(bbox, anchor_boxes, index_inside, valid_anchor_boxes)
+print("Anchor labels", anchor_labels.shape)
+print("Anchor locations", anchor_locations.shape)
 
-conv1 = nn.Conv2d(RPN_INPUT_CHANNELS, RPN_HIDDEN_CHANNELS, 3, 1, 1).to(device)
+
+conv1 = nn.Conv2d(out_channels, RPN_HIDDEN_CHANNELS, 3, 1, 1).to(device)
 conv1.weight.data.normal_(0, 0.01)
 conv1.bias.data.zero_()
 reg_layer = nn.Conv2d(RPN_HIDDEN_CHANNELS, K * 4, 1, 1, 0).to(device)
@@ -253,13 +267,20 @@ cls_layer.weight.data.normal_(0, 0.01)
 cls_layer.bias.data.zero_()
 
 x = conv1(out_map.to(device))
-pred_anchor_locs = reg_layer(x)
-pred_anchor_locs = pred_anchor_locs.permute(0, 2, 3, 1).contiguous().view(1, -1, 4)
-pred_cls_scores = cls_layer(x)
-pred_cls_scores = pred_cls_scores.permute(0, 2, 3, 1).contiguous()
-objectness_scores = pred_cls_scores.view(1, FEATURE_SIZE, FEATURE_SIZE, ANCHORS_COUNT, 2)[:, :, :, :, 1]
+pred_anchor_locations = reg_layer(x)
+# TODO batch_size > 1
+pred_anchor_locations = pred_anchor_locations.permute(0, 2, 3, 1).contiguous().view(1, -1, 4)
+print("RPN locations", pred_anchor_locations.size())
+pred_anchor_labels = cls_layer(x)
+pred_anchor_labels = pred_anchor_labels.permute(0, 2, 3, 1).contiguous()
+# TODO batch_size > 1
+objectness_scores = pred_anchor_labels.view(1, FEATURE_SIZE, FEATURE_SIZE, K, 2)[:, :, :, :, 1]
+# TODO batch_size > 1
 objectness_scores = objectness_scores.contiguous().view(1, -1)
-pred_cls_scores = pred_cls_scores.view(1, -1, 2)
+# TODO batch_size > 1
+pred_anchor_labels = pred_anchor_labels.view(1, -1, 2)
+print("RPN labels", pred_anchor_labels.size())
+print("RPN objectness scores", objectness_scores.size())
 
 
 def calc_reg_loss(rpn_loc, gt_rpn_loc, gt_rpn_score):
@@ -269,13 +290,15 @@ def calc_reg_loss(rpn_loc, gt_rpn_loc, gt_rpn_score):
     mask_loc_targets = gt_rpn_loc[mask].view(-1, 4)
     x = torch.abs(mask_loc_targets.cpu() - mask_loc_preds.cpu())
     rpn_loc_loss = ((x < 1).float() * 0.5 * x ** 2) + ((x >= 1).float() * (x - 0.5))
-    n_reg = (gt_rpn_score > 0).float().sum()
+    n_reg = pos.float().sum()
     rpn_loc_loss = rpn_loc_loss.sum() / n_reg
     return rpn_loc_loss
 
 
 def calc_rpn_loss(pred_locations, pred_labels, anchor_locations, anchor_labels, device):
+    # TODO batch_size > 1
     rpn_loc = pred_locations[0]
+    # TODO batch_size > 1
     rpn_score = pred_labels[0]
     gt_rpn_loc = torch.from_numpy(anchor_locations)
     gt_rpn_score = torch.from_numpy(anchor_labels)
@@ -285,7 +308,9 @@ def calc_rpn_loss(pred_locations, pred_labels, anchor_locations, anchor_labels, 
     return loss
 
 
-rpn_loss = calc_rpn_loss(pred_anchor_locs, pred_cls_scores, anchor_locations, anchor_labels, device)
+rpn_loss = calc_rpn_loss(pred_anchor_locations, pred_anchor_labels, anchor_locations, anchor_labels, device)
+print("RPN loss", rpn_loss)
+exit()
 
 
 def non_maximum_suppression(anchor_boxes, anchor_locations, pred_anchor_locs, objectness_scores):
@@ -347,7 +372,7 @@ def non_maximum_suppression(anchor_boxes, anchor_locations, pred_anchor_locs, ob
     return roi
 
 
-roi = non_maximum_suppression(anchor_boxes, anchor_locations, pred_anchor_locs, objectness_scores)
+roi = non_maximum_suppression(anchor_boxes, anchor_locations, pred_anchor_locations, objectness_scores)
 ious = calc_ious(bbox, roi)
 
 gt_assignment = ious.argmax(axis=1)
