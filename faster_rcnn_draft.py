@@ -310,39 +310,40 @@ def calc_rpn_loss(pred_locations, pred_labels, anchor_locations, anchor_labels, 
 
 rpn_loss = calc_rpn_loss(pred_anchor_locations, pred_anchor_labels, anchor_locations, anchor_labels, device)
 print("RPN loss", rpn_loss)
-exit()
 
 
-def non_maximum_suppression(anchor_boxes, anchor_locations, pred_anchor_locs, objectness_scores):
+def non_maximum_suppression(anchor_boxes, pred_anchor_locations, objectness_scores):
     anchor_height = anchor_boxes[:, 2] - anchor_boxes[:, 0]
     anchor_width = anchor_boxes[:, 3] - anchor_boxes[:, 1]
     anchor_ctr_y = anchor_boxes[:, 0] + 0.5 * anchor_height
     anchor_ctr_x = anchor_boxes[:, 1] + 0.5 * anchor_width
-    pred_anchor_locs_np = pred_anchor_locs[0].cpu().data.numpy()
+    # TODO batch_size > 1
+    pred_anchor_locations_np = pred_anchor_locations[0].cpu().data.numpy()
+    # TODO batch_size > 1
     objectness_scores_np = objectness_scores[0].cpu().data.numpy()
-    dy = pred_anchor_locs_np[:, 0::4]
-    dx = pred_anchor_locs_np[:, 1::4]
-    dh = pred_anchor_locs_np[:, 2::4]
-    dw = pred_anchor_locs_np[:, 3::4]
+    dy = pred_anchor_locations_np[:, 0::4]
+    dx = pred_anchor_locations_np[:, 1::4]
+    dh = pred_anchor_locations_np[:, 2::4]
+    dw = pred_anchor_locations_np[:, 3::4]
     ctr_y = dy * anchor_height[:, np.newaxis] + anchor_ctr_y[:, np.newaxis]
     ctr_x = dx * anchor_width[:, np.newaxis] + anchor_ctr_x[:, np.newaxis]
     h = np.exp(dh) * anchor_height[:, np.newaxis]
     w = np.exp(dw) * anchor_width[:, np.newaxis]
 
-    roi = np.zeros(pred_anchor_locs_np.shape, dtype=anchor_locations.dtype)
+    roi = np.zeros(pred_anchor_locations_np.shape, dtype=pred_anchor_locations_np.dtype)
     roi[:, 0::4] = ctr_y - 0.5 * h
     roi[:, 1::4] = ctr_x - 0.5 * w
     roi[:, 2::4] = ctr_y + 0.5 * h
     roi[:, 3::4] = ctr_x + 0.5 * w
-    roi[: slice(0, 4, 2)] = np.clip(roi[:, slice(0, 4, 2)], 0, IMAGE_SIZE)
-    roi[: slice(1, 4, 2)] = np.clip(roi[:, slice(1, 4, 2)], 0, IMAGE_SIZE)
+    roi[:, slice(0, 4, 2)] = np.clip(roi[:, slice(0, 4, 2)], 0, IMAGE_SIZE)
+    roi[:, slice(1, 4, 2)] = np.clip(roi[:, slice(1, 4, 2)], 0, IMAGE_SIZE)
 
     hs = roi[:, 2] - roi[:, 0]
     ws = roi[:, 3] - roi[:, 1]
     keep = np.where((hs >= MIN_SIZE) & (ws >= MIN_SIZE))[0]
     roi = roi[keep, :]
     score = objectness_scores_np[keep]
-    order = score.reval().argsort()[::-1]
+    order = score.ravel().argsort()[::-1]
     order = order[:N_TRAIN_PRE_NMS]
     roi = roi[order, :]
 
@@ -372,7 +373,11 @@ def non_maximum_suppression(anchor_boxes, anchor_locations, pred_anchor_locs, ob
     return roi
 
 
-roi = non_maximum_suppression(anchor_boxes, anchor_locations, pred_anchor_locations, objectness_scores)
+roi = non_maximum_suppression(anchor_boxes, pred_anchor_locations, objectness_scores)
+print("ROI after NMS", roi.shape)
+exit()
+
+
 ious = calc_ious(bbox, roi)
 
 gt_assignment = ious.argmax(axis=1)
