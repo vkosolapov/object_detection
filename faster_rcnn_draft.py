@@ -85,7 +85,8 @@ def preprocess(image, bboxes, labels):
 
 
 img0 = cv2.imread("elephant.jpg")
-bbox0 = np.array([[900, 180, 3700, 2200], [1000, 200, 3800, 2500]])
+# bbox0 = np.array([[900, 180, 3700, 2200], [1000, 200, 3800, 2500]])
+bbox0 = np.array([[200, 50, 1000, 500], [1250, 1100, 1800, 1600]])
 labels0 = np.array([1, 1])
 show_boxes_and_labels(img0, bbox0, labels0)
 img, bbox, labels = preprocess(img0, bbox0, labels0)
@@ -330,22 +331,25 @@ def non_maximum_suppression(anchor_boxes, pred_anchor_locations, objectness_scor
     h = np.exp(dh) * anchor_height[:, np.newaxis]
     w = np.exp(dw) * anchor_width[:, np.newaxis]
 
-    roi = np.zeros(pred_anchor_locations_np.shape, dtype=pred_anchor_locations_np.dtype)
+    roi = np.zeros(pred_anchor_locations_np.shape, dtype=anchor_locations.dtype)
     roi[:, 0::4] = ctr_y - 0.5 * h
     roi[:, 1::4] = ctr_x - 0.5 * w
     roi[:, 2::4] = ctr_y + 0.5 * h
     roi[:, 3::4] = ctr_x + 0.5 * w
     roi[:, slice(0, 4, 2)] = np.clip(roi[:, slice(0, 4, 2)], 0, IMAGE_SIZE)
     roi[:, slice(1, 4, 2)] = np.clip(roi[:, slice(1, 4, 2)], 0, IMAGE_SIZE)
+    print("ROI after clip", roi.shape)
 
     hs = roi[:, 2] - roi[:, 0]
     ws = roi[:, 3] - roi[:, 1]
     keep = np.where((hs >= MIN_SIZE) & (ws >= MIN_SIZE))[0]
     roi = roi[keep, :]
+    print("ROI after keep", roi.shape)
     score = objectness_scores_np[keep]
     order = score.ravel().argsort()[::-1]
     order = order[:N_TRAIN_PRE_NMS]
     roi = roi[order, :]
+    print("ROI after order", roi.shape)
 
     y1 = roi[:, 0]
     x1 = roi[:, 1]
