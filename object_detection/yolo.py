@@ -158,6 +158,53 @@ class YOLO(nn.Module):
             outputs[i] = x
         return detections
 
+    def load_weights(self, weightfile):
+        fp = open(weightfile, "rb")
+        header = np.fromfile(fp, dtype=np.int32, count=5)
+        self.header = torch.from_numpy(header)
+        self.seen = self.header[3]
+        weights = np.fromfile(fp, dtype=np.float32)
+        ptr = 0
+        for i in range(len(self.module_list)):
+            module_type = self.blocks[i + 1]["type"]
+            if module_type == "convolutional":
+                model = self.module_list[i]
+                if "batch_normalize" in self.blocks[i + 1]:
+                    batch_normalize = int(self.blocks[i + 1]["batch_normalize"])
+                else:
+                    batch_normalize = 0
+                conv = model[0]
+                if batch_normalize:
+                    bn = model[1]
+                    num_bn_biases = bn.bias.numel()
+                    bn_biases = torch.from_numpy(weights[ptr:ptr + num_bn_biases])
+                    ptr += num_bn_biases
+                    bn_weights = torch.from_numpy(weights[ptr: ptr + num_bn_biases])
+                    ptr += num_bn_biases
+                    bn_running_mean = torch.from_numpy(weights[ptr: ptr + num_bn_biases])
+                    ptr += num_bn_biases
+                    bn_running_var = torch.from_numpy(weights[ptr: ptr + num_bn_biases])
+                    ptr += num_bn_biases
+                    bn_biases = bn_biases.view_as(bn.bias.data)
+                    bn_weights = bn_weights.view_as(bn.weight.data)
+                    bn_running_mean = bn_running_mean.view_as(bn.running_mean)
+                    bn_running_var = bn_running_var.view_as(bn.running_var)
+                    bn.bias.data.copy_(bn_biases)
+                    bn.weight.data.copy_(bn_weights)
+                    bn.running_mean.copy_(bn_running_mean)
+                    bn.running_var.copy_(bn_running_var)
+                else:
+                    num_biases = conv.bias.numel()
+                    conv_biases = torch.from_numpy(weights[ptr: ptr + num_biases])
+                    ptr = ptr + num_biases
+                    conv_biases = conv_biases.view_as(conv.bias.data)
+                    conv.bias.data.copy_(conv_biases)
+                num_weights = conv.weight.numel()
+                conv_weights = torch.from_numpy(weights[ptr:ptr + num_weights])
+                ptr = ptr + num_weights
+                conv_weights = conv_weights.view_as(conv.weight.data)
+                conv.weight.data.copy_(conv_weights)
+
 
 def get_test_input():
     img = cv2.imread("images/dog-cycle-car.png")
@@ -174,6 +221,7 @@ if torch.cuda.is_available():
 else:
     device = torch.device("cpu")
 model = YOLO("cfg/yolov3.cfg")
+model.load_weights("checkpoints/yolov3.weights")
 inp = get_test_input()
 pred = model(inp, device)
 print(pred.size())
