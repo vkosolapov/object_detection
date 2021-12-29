@@ -84,7 +84,7 @@ def preprocess(image, bboxes, labels):
     return scaled_image, scaled_bboxes, labels
 
 
-img0 = cv2.imread("elephant.jpg")
+img0 = cv2.imread("images/elephant.jpg")
 # bbox0 = np.array([[900, 180, 3700, 2200], [1000, 200, 3800, 2500]])
 bbox0 = np.array([[200, 50, 1000, 500], [1250, 1100, 1800, 1600]])
 labels0 = np.array([1, 1])
