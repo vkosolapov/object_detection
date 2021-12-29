@@ -5,8 +5,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
+import cv2
 
-from util import *
+from util import predict_transform
 
 
 class EmptyLayer(nn.Module):
