@@ -26,17 +26,17 @@ class Albumentations:
                 A.MedianBlur(p=0.01),
                 A.ToGray(p=0.01),
                 A.CLAHE(p=0.01),
-                # A.OneOf(
-                #    [
-                #        A.RandomGamma(),
-                #        A.RGBShift(),
-                #        A.RandomBrightnessContrast(
-                #            brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1),
-                #        ),
-                #    ],
-                #    p=0.1,
-                # ),
                 A.ImageCompression(quality_lower=75, p=0.0)],
+                A.OneOf(
+                    [
+                        A.RandomGamma(),
+                        A.RGBShift(),
+                        A.RandomBrightnessContrast(
+                            brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1),
+                        ),
+                    ],
+                    p=0.01,
+                ),
                 bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
             LOGGER.info(colorstr('albumentations: ') + ', '.join(f'{x}' for x in self.transform.transforms if x.p))
