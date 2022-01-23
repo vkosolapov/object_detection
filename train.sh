@@ -6,4 +6,4 @@ python object_detection/yolov5/train.py \
     --weights yolov5s.pt \
     --hyp object_detection/yolov5/data/hyps/hyp.scratch.yaml \
     --workers 12 \
-    --project object_detection_ --name 010_soft_loss
+    --project object_detection_ --name 011_soft_loss_and_aug
