@@ -1,3 +1,4 @@
 *.pt
 wandb
 object_detection_
+/**/__pycache__
