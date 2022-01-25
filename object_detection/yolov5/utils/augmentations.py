@@ -35,7 +35,7 @@ class Albumentations:
                             brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1),
                         ),
                     ],
-                    p=0.01,
+                    p=0.0,
                 ),
                 bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
