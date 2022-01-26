@@ -1,15 +1,13 @@
-import yaml
-from ..yolov5.utils.datasets import create_dataloader
+from yolov5.utils.datasets import create_dataloader
 
 
 def create_train_dataloader(data_path, image_size, batch_size, workers):
-    data_dict = yaml.safe_load(data_path)
-    train_path = data_dict['train']
+    train_path = data_path + "/train.txt"
     train_loader = create_dataloader(
         train_path, 
         image_size, 
         batch_size, 
-        gs=32, 
+        stride=32, 
         single_cls=False,
         # hyp=hyp, 
         augment=False, 
@@ -23,13 +21,12 @@ def create_train_dataloader(data_path, image_size, batch_size, workers):
     return train_loader
 
 def create_val_dataloader(data_path, image_size, batch_size, workers):
-    data_dict = yaml.safe_load(data_path)
-    val_path = data_dict['val']
+    val_path = data_path + "/validation.txt"
     val_loader = create_dataloader(
         val_path, 
         image_size, 
         batch_size, 
-        gs=32, 
+        stride=32, 
         single_cls=False,
         # hyp=hyp, 
         augment=False, 

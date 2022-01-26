@@ -109,7 +109,7 @@ class TrainLoop:
     def train_epoch(self, epoch):
         self.model.train()
         self.running_loss = 0.0
-        for i, (inputs, labels) in tqdm(
+        for i, (inputs, labels, _, _) in tqdm(
             enumerate(self.data_loaders["train"])
         ):
             self.inputs = inputs.to(self.device)
@@ -144,7 +144,7 @@ class TrainLoop:
     def test_epoch(self, epoch):
         self.model.eval()
         self.running_loss = 0.0
-        for i, (inputs, labels) in tqdm(
+        for i, (inputs, labels, _, _) in tqdm(
             enumerate(self.data_loaders["val"])
         ):
             self.inputs = inputs.to(self.device)

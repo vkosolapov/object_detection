@@ -129,13 +129,13 @@ if __name__ == "__main__":
     metrics = {
         "mAP@0.5": MeanAveragePrecision(
             box_format="xywh",
-            iou_threshold=[0.5],
+            iou_thresholds=[0.5],
             max_detection_thresholds=[100],
             class_metrics=False,
         ),
         "mAP@0.5:0.95": MeanAveragePrecision(
             box_format="xywh",
-            iou_threshold=list(range(0.5, 0.95, 0.05)),
+            iou_thresholds=[(50.0 + th * 5.0) / 100.0 for th in range(10)],
             max_detection_thresholds=[100],
             class_metrics=False,
         )
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         experiment_name=EXPERIMENT_NAME,
         device=device,
         workers=8,
-        datadir="data/AFO/dataset.yaml",
+        datadir="data/AFO/PART_1/PART_1",
         image_size=1280,
         batch_size=8,
         model=model,

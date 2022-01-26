@@ -1,4 +1,5 @@
 *.pt
 wandb
+runs
 object_detection_
 /**/__pycache__
