@@ -14,10 +14,10 @@ from timm.models.sknet import SelectiveKernelBottleneck
 from timm.models.resnest import ResNestBottleneck
 from timm.models.res2net import Bottle2neck
 from model import Model
-import torch.nn as nn
+from loss import RegressionLoss, LabelSmoothingFocalLoss
 import torch.optim as optim
 from torchcontrib.optim import SWA
-import torchmetrics
+from torchmetrics.detection.map import MeanAveragePrecision
 
 random.seed(0)
 np.random.seed(0)
@@ -126,6 +126,20 @@ if __name__ == "__main__":
         ],
         p=1,
     )
+    metrics = {
+        "mAP@0.5": MeanAveragePrecision(
+            box_format="xywh",
+            iou_threshold=[0.5],
+            max_detection_thresholds=[100],
+            class_metrics=False,
+        ),
+        "mAP@0.5:0.95": MeanAveragePrecision(
+            box_format="xywh",
+            iou_threshold=list(range(0.5, 0.95, 0.05)),
+            max_detection_thresholds=[100],
+            class_metrics=False,
+        )
+    }
 
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
@@ -137,8 +151,10 @@ if __name__ == "__main__":
         model=model,
         optimizer=optimizer,  # swa,
         num_epochs=500,
-        criterion=nn.CrossEntropyLoss(num_classes=num_classes),
-        metrics={},
+        criterion=[LabelSmoothingFocalLoss(num_classes, gamma=0.0, smoothing=0.0), RegressionLoss(), RegressionLoss()],
+        criterion_weights=[1.0, 0.1, 1.0],
+        metrics=metrics,
+        main_metric="mAP@0.5:0.95",
         scheduler=scheduler,
         early_stopping=20,
         # checkpoint_file="checkpoints/checkpoint_139.pth",

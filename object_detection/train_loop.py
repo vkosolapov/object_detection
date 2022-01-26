@@ -22,7 +22,9 @@ class TrainLoop:
         optimizer,
         num_epochs,
         criterion,
+        criterion_weights,
         metrics,
+        main_metric,
         scheduler=None,
         early_stopping=None,
         checkpoint_file=None,
@@ -39,8 +41,10 @@ class TrainLoop:
         self.optimizer = optimizer
         self.num_epochs = num_epochs
         self.criterion = criterion
+        self.criterion_weights = criterion_weights
         self.metrics = metrics
         self.metrics_values = {}
+        self.main_metric = main_metric
         self.scheduler = scheduler
         self.early_stopping = early_stopping
         self.checkpoint_file = checkpoint_file
@@ -112,7 +116,10 @@ class TrainLoop:
             self.labels = labels.to(self.device)
             with torch.set_grad_enabled(True):
                 outputs = self.model(self.inputs)
-                self.loss = self.criterion(outputs, self.labels)
+                loss = 0.0
+                for i in range(len(self.criterion_weights)):
+                    loss += self.criterion_weights[i] * self.criterion[i](outputs[i], self.labels[i])
+                self.loss = loss
                 _, self.preds = torch.max(outputs, 1)
                 self.probs = torch.softmax(outputs, 1)
                 self.optimizer.zero_grad()
@@ -129,8 +136,9 @@ class TrainLoop:
             "epoch": epoch,
             "model_state": self.model.state_dict(),
             "optim_state": self.optimizer.state_dict(),
-            "scheduler_state": self.scheduler.state_dict(),
         }
+        if self.scheduler:
+            checkpoint["scheduler_state"] = self.scheduler.state_dict()
         torch.save(checkpoint, f"checkpoints/checkpoint_{epoch}.pth")
 
     def test_epoch(self, epoch):
@@ -143,7 +151,10 @@ class TrainLoop:
             self.labels = labels.to(self.device)
             with torch.set_grad_enabled(False):
                 outputs = self.model(self.inputs)
-                self.loss = self.criterion(outputs, self.labels)
+                loss = 0.0
+                for i in range(len(self.criterion_weights)):
+                    loss += self.criterion_weights[i] * self.criterion[i](outputs[i], self.labels[i])
+                self.loss = loss
                 _, self.preds = torch.max(outputs, 1)
                 self.probs = torch.softmax(outputs, 1)
             self.evaluate_minibatch()
@@ -159,16 +170,17 @@ class TrainLoop:
             checkpoint = torch.load(self.checkpoint_file)
             self.model.load_state_dict(checkpoint["model_state"])
             self.optimizer.load_state_dict(checkpoint["optim_state"])
-            self.scheduler.load_state_dict(checkpoint["scheduler_state"])
+            if self.scheduler:
+                self.scheduler.load_state_dict(checkpoint["scheduler_state"])
         best_model_wts = copy.deepcopy(self.model.state_dict())
-        best_loss = 1000000.0
+        best_metric = 0.0
         for epoch in range(self.num_epochs):
             print("Epoch {}/{}".format(epoch, self.num_epochs - 1))
             print("-" * 10)
             self.train_epoch(epoch)
-            epoch_loss = self.test_epoch(epoch)
-            if epoch_loss.item() > best_loss:
-                best_loss = epoch_loss.item()
+            self.test_epoch(epoch)
+            if self.metrics_values[self.main_metric] > best_metric:
+                best_metric = self.metrics_values[self.main_metric]
                 best_model_wts = copy.deepcopy(self.model.state_dict())
                 early_stopping_counter = 0
             else:
@@ -185,7 +197,7 @@ class TrainLoop:
                 time_elapsed // 60, time_elapsed % 60
             )
         )
-        print("Best val loss: {:4f}".format(best_loss))
+        print("Best val metric: {:4f}".format(best_metric))
         self.model.load_state_dict(best_model_wts)
         torch.save(
             self.model.state_dict(), f"checkpoints/final_{self.experiment_name}.pt"
