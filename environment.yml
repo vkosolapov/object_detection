@@ -137,6 +137,7 @@ dependencies:
     - pathtools==0.1.2
     - promise==2.3
     - psutil==5.9.0
+    - pydeprecate==0.3.2
     - pyparsing==3.0.6
     - python-dateutil==2.8.2
     - pytz==2021.3
@@ -155,10 +156,10 @@ dependencies:
     - thop==0.0.31-2005241907
     - threadpoolctl==3.0.0
     - tifffile==2021.11.2
-    - timm==0.4.12
+    - timm==0.5.4
     - torch-tb-profiler==0.3.1
     - torchcontrib==0.0.2
-    - torchmetrics==0.6.0
+    - torchmetrics==0.7.0
     - wandb==0.12.9
     - yaspin==2.1.0
 prefix: /home/vladimir_kosolapov/miniconda3/envs/dl_course
