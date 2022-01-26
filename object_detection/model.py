@@ -9,7 +9,7 @@ class Model(nn.Module):
         super().__init__()
         self.backbone = TIMMBackbone(backbone)
         self.head = CenterNet(num_classes, backbone)
-                
+
     def forward(self, x):
         x = self.backbone(x)
         x = self.head(x)

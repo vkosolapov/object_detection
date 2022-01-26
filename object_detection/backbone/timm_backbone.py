@@ -9,9 +9,9 @@ class TIMMBackbone(nn.Module):
         children.reverse()
         for idx, module in enumerate(children):
             if isinstance(module, SelectAdaptivePool2d):
-                backbone = nn.Sequential(*list(backbone.children())[:-(idx + 1)])
+                backbone = nn.Sequential(*list(backbone.children())[: -(idx + 1)])
                 break
         self.backbone = backbone
-                
+
     def forward(self, x):
         return self.backbone(x)

@@ -4,44 +4,46 @@ from yolov5.utils.datasets import create_dataloader
 def create_train_dataloader(data_path, image_size, batch_size, workers):
     train_path = data_path + "/train.txt"
     train_loader = create_dataloader(
-        train_path, 
-        image_size, 
-        batch_size, 
-        stride=32, 
+        train_path,
+        image_size,
+        batch_size,
+        stride=32,
         single_cls=False,
-        # hyp=hyp, 
-        augment=False, 
-        cache=None, 
-        rect=False, 
+        # hyp=hyp,
+        augment=False,
+        cache=None,
+        rect=False,
         rank=-1,
         workers=workers,
-        prefix="train", 
-        shuffle=True
+        prefix="train",
+        shuffle=True,
     )[0]
     return train_loader
+
 
 def create_val_dataloader(data_path, image_size, batch_size, workers):
     val_path = data_path + "/validation.txt"
     val_loader = create_dataloader(
-        val_path, 
-        image_size, 
-        batch_size, 
-        stride=32, 
+        val_path,
+        image_size,
+        batch_size,
+        stride=32,
         single_cls=False,
-        # hyp=hyp, 
-        augment=False, 
-        cache=None, 
-        rect=False, 
+        # hyp=hyp,
+        augment=False,
+        cache=None,
+        rect=False,
         rank=-1,
         workers=workers,
-        prefix="val"
+        prefix="val",
     )[0]
     return val_loader
 
+
 def rename(file_name, string_to_add):
-    with open(file_name, 'r') as f:
-        file_lines = [''.join([string_to_add, x.strip(), '\n']) for x in f.readlines()]
-    with open(file_name, 'w') as f:
+    with open(file_name, "r") as f:
+        file_lines = ["".join([string_to_add, x.strip(), "\n"]) for x in f.readlines()]
+    with open(file_name, "w") as f:
         f.writelines(file_lines)
 
 

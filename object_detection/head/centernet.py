@@ -14,12 +14,12 @@ class CenterNet(nn.Module):
         self.channels = channels
 
         self.decoder = self._make_decoder(
-            num_layers=3,
-            channels_list=[256, 128, 64],
-            kernels_list=[4, 4, 4],
+            num_layers=3, channels_list=[256, 128, 64], kernels_list=[4, 4, 4],
         )
 
-        self.classification_head = self._make_head(input_channels=64, output_channels=num_classes)
+        self.classification_head = self._make_head(
+            input_channels=64, output_channels=num_classes
+        )
         self.size_head = self._make_head(input_channels=64, output_channels=2)
         self.offset_head = self._make_head(input_channels=64, output_channels=2)
 
@@ -43,13 +43,17 @@ class CenterNet(nn.Module):
             layers.append(nn.ReLU(inplace=True))
             self.channels = channels
         return nn.Sequential(*layers)
-    
+
     def _make_head(self, input_channels, output_channels):
         return nn.Sequential(
-            nn.Conv2d(input_channels, input_channels, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(
+                input_channels, input_channels, kernel_size=3, padding=1, bias=False
+            ),
             nn.BatchNorm2d(input_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=1, padding=0)
+            nn.Conv2d(
+                input_channels, output_channels, kernel_size=1, stride=1, padding=0
+            ),
         )
 
     def forward(self, x):

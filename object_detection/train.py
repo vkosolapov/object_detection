@@ -138,7 +138,7 @@ if __name__ == "__main__":
             iou_thresholds=[(50.0 + th * 5.0) / 100.0 for th in range(10)],
             max_detection_thresholds=[100],
             class_metrics=False,
-        )
+        ),
     }
 
     loop = TrainLoop(
@@ -151,7 +151,11 @@ if __name__ == "__main__":
         model=model,
         optimizer=optimizer,  # swa,
         num_epochs=500,
-        criterion=[LabelSmoothingFocalLoss(num_classes, gamma=0.0, smoothing=0.0), RegressionLoss(), RegressionLoss()],
+        criterion=[
+            LabelSmoothingFocalLoss(num_classes, gamma=0.0, smoothing=0.0),
+            RegressionLoss(),
+            RegressionLoss(),
+        ],
         criterion_weights=[1.0, 0.1, 1.0],
         metrics=metrics,
         main_metric="mAP@0.5:0.95",
