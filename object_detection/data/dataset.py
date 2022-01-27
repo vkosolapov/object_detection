@@ -1,6 +1,5 @@
 import math
 import numpy as np
-import cv2
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -73,14 +72,16 @@ def cvtColor(image):
 
 
 class CenternetDataset(Dataset):
-    def __init__(self, annotation_lines, input_shape, num_classes, train):
+    def __init__(self, data_path, phase, num_classes, input_shape, stride, transforms):
         super(CenternetDataset, self).__init__()
-        self.annotation_lines = annotation_lines
+        suffix = "/train.txt" if phase == "train" else "/validation.txt"
+        self.data_path = data_path + suffix
+        with open(self.data_path) as file:
+            self.annotation_lines = file.readlines()
         self.length = len(self.annotation_lines)
         self.input_shape = input_shape
-        self.output_shape = (int(input_shape[0] / 4), int(input_shape[1] / 4))
+        self.output_shape = (int(input_shape[0] / stride), int(input_shape[1] / stride))
         self.num_classes = num_classes
-        self.train = train
 
     def __len__(self):
         return self.length
@@ -88,23 +89,23 @@ class CenternetDataset(Dataset):
     def __getitem__(self, index):
         index = index % self.length
 
-        image, box = self.get_data(self.annotation_lines[index], self.input_shape)
-        batch_hm = np.zeros(
+        image, labels = self.get_data(self.annotation_lines[index], self.input_shape)
+        target_cls = np.zeros(
             (self.output_shape[0], self.output_shape[1], self.num_classes),
             dtype=np.float32,
         )
-        batch_wh = np.zeros(
+        target_size = np.zeros(
             (self.output_shape[0], self.output_shape[1], 2), dtype=np.float32
         )
-        batch_reg = np.zeros(
+        target_offset = np.zeros(
             (self.output_shape[0], self.output_shape[1], 2), dtype=np.float32
         )
-        batch_reg_mask = np.zeros(
+        target_regression_mask = np.zeros(
             (self.output_shape[0], self.output_shape[1]), dtype=np.float32
         )
 
-        if len(box) != 0:
-            boxes = np.array(box[:, :4], dtype=np.float32)
+        if len(labels) != 0:
+            boxes = np.array(labels[:, :4], dtype=np.float32)
             boxes[:, [0, 2]] = np.clip(
                 boxes[:, [0, 2]] / self.input_shape[1] * self.output_shape[1],
                 0,
@@ -116,41 +117,34 @@ class CenternetDataset(Dataset):
                 self.output_shape[0] - 1,
             )
 
-        for i in range(len(box)):
-            bbox = boxes[i].copy()
-            cls_id = int(box[i, -1])
+        for i in range(len(labels)):
+            box = boxes[i].copy()
+            cls_id = int(labels[i, -1])
 
-            h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
+            w, h = box[2] - box[0], box[3] - box[1]
             if h > 0 and w > 0:
                 radius = gaussian_radius((math.ceil(h), math.ceil(w)))
                 radius = max(0, int(radius))
                 ct = np.array(
-                    [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32
+                    [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2], dtype=np.float32
                 )
                 ct_int = ct.astype(np.int32)
-                batch_hm[:, :, cls_id] = draw_gaussian(
-                    batch_hm[:, :, cls_id], ct_int, radius
+                target_cls[:, :, cls_id] = draw_gaussian(
+                    target_cls[:, :, cls_id], ct_int, radius
                 )
-                batch_wh[ct_int[1], ct_int[0]] = 1.0 * w, 1.0 * h
-                batch_reg[ct_int[1], ct_int[0]] = ct - ct_int
-                batch_reg_mask[ct_int[1], ct_int[0]] = 1
+                target_size[ct_int[1], ct_int[0]] = 1.0 * w, 1.0 * h
+                target_offset[ct_int[1], ct_int[0]] = ct - ct_int
+                target_regression_mask[ct_int[1], ct_int[0]] = 1
 
         image = np.transpose(preprocess_input(image), (2, 0, 1))
 
-        return image, batch_hm, batch_wh, batch_reg, batch_reg_mask
+        return image, target_cls, target_size, target_offset, target_regression_mask
 
-    def rand(self, a=0, b=1):
-        return np.random.rand() * (b - a) + a
-
-    def get_data(
-        self, annotation_line, input_shape,
-    ):
-        line = annotation_line.split()
-        image = Image.open(line[0])
+    def get_data(self, annotation_line, input_shape):
+        image = Image.open(annotation_line)
         image = cvtColor(image)
         iw, ih = image.size
-        h, w = input_shape
-        box = np.array([np.array(list(map(int, box.split(",")))) for box in line[1:]])
+        w, h = input_shape
 
         scale = min(w / iw, h / ih)
         nw = int(iw * scale)
@@ -163,15 +157,29 @@ class CenternetDataset(Dataset):
         new_image.paste(image, (dx, dy))
         image_data = np.array(new_image, np.float32)
 
-        if len(box) > 0:
-            np.random.shuffle(box)
-            box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
-            box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
-            box[:, 0:2][box[:, 0:2] < 0] = 0
-            box[:, 2][box[:, 2] > w] = w
-            box[:, 3][box[:, 3] > h] = h
-            box_w = box[:, 2] - box[:, 0]
-            box_h = box[:, 3] - box[:, 1]
-            box = box[np.logical_and(box_w > 1, box_h > 1)]  # discard invalid box
+        with open(annotation_line.replace("images", "labels")) as file:
+            labels = file.readlines()
+        labels_items = []
+        for label in labels:
+            label_items = label.split(" ")
+            label_items.append(label_items.pop(0))
+            label_items[0] *= int(w)
+            label_items[1] *= int(h)
+            label_items[2] *= int(w)
+            label_items[2] += label_items[0]
+            label_items[3] *= int(h)
+            label_items[3] += label_items[1]
+            labels_items.append(label_items)
+        labels = np.array([np.array(label_items) for label_items in labels_items])
 
-        return image_data, box
+        if len(labels) > 0:
+            labels[:, [0, 2]] = labels[:, [0, 2]] * nw / iw + dx
+            labels[:, [1, 3]] = labels[:, [1, 3]] * nh / ih + dy
+            labels[:, 0:2][labels[:, 0:2] < 0] = 0
+            labels[:, 2][labels[:, 2] > w] = w
+            labels[:, 3][labels[:, 3] > h] = h
+            box_w = labels[:, 2] - labels[:, 0]
+            box_h = labels[:, 3] - labels[:, 1]
+            labels = labels[np.logical_and(box_w > 1, box_h > 1)]
+
+        return image_data, labels

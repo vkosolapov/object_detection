@@ -146,6 +146,7 @@ if __name__ == "__main__":
         device=device,
         workers=8,
         datadir="data/AFO/PART_1/PART_1",
+        num_classes=num_classes,
         image_size=1280,
         batch_size=8,
         model=model,

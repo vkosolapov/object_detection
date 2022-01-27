@@ -6,7 +6,7 @@ import time
 from tqdm import tqdm
 import copy
 
-from data.dataloader import create_train_dataloader, create_val_dataloader
+from data.dataloader import DataLoader
 
 
 class TrainLoop:
@@ -16,6 +16,7 @@ class TrainLoop:
         device,
         workers,
         datadir,
+        num_classes,
         image_size,
         batch_size,
         model,
@@ -34,8 +35,12 @@ class TrainLoop:
         self.device = device
         self.batch_size = batch_size
         self.data_loaders = {
-            "train": create_train_dataloader(datadir, image_size, batch_size, workers),
-            "val": create_val_dataloader(datadir, image_size, batch_size, workers),
+            "train": DataLoader(
+                datadir, "train", num_classes, image_size, 4, batch_size, None, workers
+            ),
+            "val": DataLoader(
+                datadir, "val", num_classes, image_size, 4, batch_size, None, workers
+            ),
         }
         self.model = model
         self.optimizer = optimizer
@@ -58,7 +63,7 @@ class TrainLoop:
         self.running_loss += self.loss.item() * self.batch_size
 
     def log_minibatch(self, phase, epoch, minibatch):
-        dataset_size = len(self.data_loaders[phase])
+        dataset_size = self.data_loaders[phase].dataset_size
         self.writer.add_scalar(
             f"batch_loss/{phase}",
             self.loss.item(),
@@ -73,7 +78,7 @@ class TrainLoop:
         self.writer.close()
 
     def evaluate_epoch(self, phase):
-        dataset_size = len(self.data_loaders[phase])
+        dataset_size = self.data_loaders[phase].dataset_size
         self.epoch_loss = self.running_loss / dataset_size
         for key in self.metrics.keys():
             self.metrics_values[key] = self.metrics[key].compute()
@@ -88,7 +93,7 @@ class TrainLoop:
         self.writer.close()
 
     def log_norm(self, phase, epoch, minibatch):
-        dataset_size = len(self.data_loaders[phase])
+        dataset_size = self.data_loaders[phase].dataset_size
         total_param_norm = 0
         total_grad_norm = 0
         for p in self.model.parameters():
@@ -113,19 +118,27 @@ class TrainLoop:
     def train_epoch(self, epoch):
         self.model.train()
         self.running_loss = 0.0
-        for i, (inputs, labels, _, _) in tqdm(enumerate(self.data_loaders["train"])):
+        for i, (inputs, cls_labels, size_labels, offset_labels, mask_labels) in tqdm(
+            enumerate(self.data_loaders["train"].data_loader)
+        ):
             self.inputs = inputs.to(self.device)
-            self.labels = labels.to(self.device)
+            self.cls_labels = cls_labels.to(self.device)
+            self.size_labels = size_labels.to(self.device)
+            self.offset_labels = offset_labels.to(self.device)
+            self.mask_labels = mask_labels.to(self.device)
             with torch.set_grad_enabled(True):
-                outputs = self.model(self.inputs)
-                loss = 0.0
-                for i in range(len(self.criterion_weights)):
-                    loss += self.criterion_weights[i] * self.criterion[i](
-                        outputs[i], self.labels[i]
-                    )
+                cls, size, offset = self.model(self.inputs)
+                cls_loss = self.criterion[0](cls, self.cls_labels)
+                size_loss = self.criterion[1](size, self.size_labels, self.mask_labels)
+                offset_loss = self.criterion[2](
+                    offset, self.offset_labels, self.mask_labels
+                )
+                loss = (
+                    cls_loss * self.criterion_weights[0]
+                    + size_loss * self.criterion_weights[1]
+                    + offset_loss * self.criterion_weights[2]
+                )
                 self.loss = loss
-                _, self.preds = torch.max(outputs, 1)
-                self.probs = torch.softmax(outputs, 1)
                 self.optimizer.zero_grad()
                 self.loss.backward()
                 self.optimizer.step()
@@ -148,19 +161,27 @@ class TrainLoop:
     def test_epoch(self, epoch):
         self.model.eval()
         self.running_loss = 0.0
-        for i, (inputs, labels, _, _) in tqdm(enumerate(self.data_loaders["val"])):
+        for i, (inputs, cls_labels, size_labels, offset_labels, mask_labels) in tqdm(
+            enumerate(self.data_loaders["val"].data_loader)
+        ):
             self.inputs = inputs.to(self.device)
-            self.labels = labels.to(self.device)
+            self.cls_labels = cls_labels.to(self.device)
+            self.size_labels = size_labels.to(self.device)
+            self.offset_labels = offset_labels.to(self.device)
+            self.mask_labels = mask_labels.to(self.device)
             with torch.set_grad_enabled(False):
-                outputs = self.model(self.inputs)
-                loss = 0.0
-                for i in range(len(self.criterion_weights)):
-                    loss += self.criterion_weights[i] * self.criterion[i](
-                        outputs[i], self.labels[i]
-                    )
+                cls, size, offset = self.model(self.inputs)
+                cls_loss = self.criterion[0](cls, self.cls_labels)
+                size_loss = self.criterion[1](size, self.size_labels, self.mask_labels)
+                offset_loss = self.criterion[2](
+                    offset, self.offset_labels, self.mask_labels
+                )
+                loss = (
+                    cls_loss * self.criterion_weights[0]
+                    + size_loss * self.criterion_weights[1]
+                    + offset_loss * self.criterion_weights[2]
+                )
                 self.loss = loss
-                _, self.preds = torch.max(outputs, 1)
-                self.probs = torch.softmax(outputs, 1)
             self.evaluate_minibatch()
             self.log_minibatch("val", epoch, i)
         self.evaluate_epoch("val")

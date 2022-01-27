@@ -1,43 +1,69 @@
-from yolov5.utils.datasets import create_dataloader
+import os
+import numpy as np
+from functools import partial
+import torch
+from torchvision import datasets, transforms
+from data.dataset import CenternetDataset
 
 
-def create_train_dataloader(data_path, image_size, batch_size, workers):
-    train_path = data_path + "/train.txt"
-    train_loader = create_dataloader(
-        train_path,
+mean = np.array([0.485, 0.456, 0.406])
+std = np.array([0.229, 0.224, 0.225])
+
+
+def augment(img, augmentation_pipeline):
+    img = np.asarray(img)
+    return augmentation_pipeline(image=img)["image"]
+
+
+class DataLoader:
+    def __init__(
+        self,
+        datadir,
+        phase,
+        num_classes,
         image_size,
+        stride,
         batch_size,
-        stride=32,
-        single_cls=False,
-        # hyp=hyp,
-        augment=False,
-        cache=None,
-        rect=False,
-        rank=-1,
-        workers=workers,
-        prefix="train",
-        shuffle=True,
-    )[0]
-    return train_loader
+        augmentations,
+        workers,
+    ):
+        data_transforms = self.transforms(augmentations)
+        image_dataset = CenternetDataset(
+            datadir, phase, num_classes, image_size, stride, data_transforms[phase]
+        )
+        data_loader = torch.utils.data.DataLoader(
+            image_dataset,
+            batch_size=batch_size,
+            shuffle=(phase == "train"),
+            drop_last=(phase == "train"),
+            num_workers=workers,
+            persistent_workers=True,
+            pin_memory=True,
+        )
+        self.data_loader = data_loader
+        self.dataset_size = len(image_dataset)
 
-
-def create_val_dataloader(data_path, image_size, batch_size, workers):
-    val_path = data_path + "/validation.txt"
-    val_loader = create_dataloader(
-        val_path,
-        image_size,
-        batch_size,
-        stride=32,
-        single_cls=False,
-        # hyp=hyp,
-        augment=False,
-        cache=None,
-        rect=False,
-        rank=-1,
-        workers=workers,
-        prefix="val",
-    )[0]
-    return val_loader
+    def transforms(self, augmentations):
+        return {
+            "train": transforms.Compose(
+                [
+                    partial(augment, augmentation_pipeline=augmentations),
+                    transforms.ToPILImage(),
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean, std),
+                ]
+            ),
+            "val": transforms.Compose(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean, std),
+                ]
+            ),
+        }
 
 
 def rename(file_name, string_to_add):
