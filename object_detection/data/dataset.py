@@ -107,14 +107,14 @@ class CenternetDataset(Dataset):
         if len(labels) != 0:
             boxes = np.array(labels[:, :4], dtype=np.float32)
             boxes[:, [0, 2]] = np.clip(
-                boxes[:, [0, 2]] / self.input_shape[1] * self.output_shape[1],
-                0,
-                self.output_shape[1] - 1,
-            )
-            boxes[:, [1, 3]] = np.clip(
-                boxes[:, [1, 3]] / self.input_shape[0] * self.output_shape[0],
+                boxes[:, [0, 2]] / self.input_shape[0] * self.output_shape[0],
                 0,
                 self.output_shape[0] - 1,
+            )
+            boxes[:, [1, 3]] = np.clip(
+                boxes[:, [1, 3]] / self.input_shape[1] * self.output_shape[1],
+                0,
+                self.output_shape[1] - 1,
             )
 
         for i in range(len(labels)):
@@ -132,9 +132,9 @@ class CenternetDataset(Dataset):
                 target_cls[:, :, cls_id] = draw_gaussian(
                     target_cls[:, :, cls_id], ct_int, radius
                 )
-                target_size[ct_int[1], ct_int[0]] = 1.0 * w, 1.0 * h
-                target_offset[ct_int[1], ct_int[0]] = ct - ct_int
-                target_regression_mask[ct_int[1], ct_int[0]] = 1
+                target_size[ct_int[0], ct_int[1]] = 1.0 * w, 1.0 * h
+                target_offset[ct_int[0], ct_int[1]] = ct - ct_int
+                target_regression_mask[ct_int[0], ct_int[1]] = 1
 
         image = np.transpose(preprocess_input(image), (2, 0, 1))
 
@@ -163,11 +163,11 @@ class CenternetDataset(Dataset):
         for label in labels:
             label_items = label.split(" ")
             label_items.append(label_items.pop(0))
-            label_items[0] *= int(w)
-            label_items[1] *= int(h)
-            label_items[2] *= int(w)
+            label_items[0] *= int(iw)
+            label_items[1] *= int(ih)
+            label_items[2] *= int(iw)
             label_items[2] += label_items[0]
-            label_items[3] *= int(h)
+            label_items[3] *= int(ih)
             label_items[3] += label_items[1]
             labels_items.append(label_items)
         labels = np.array([np.array(label_items) for label_items in labels_items])
