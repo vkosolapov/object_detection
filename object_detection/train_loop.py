@@ -73,54 +73,67 @@ class TrainLoop:
     def evaluate_minibatch(self):
         preds = []
         labels = []
+        outputs = decode_bbox(
+            self.cls_pred,
+            self.size_pred,
+            self.offset_pred,
+            confidence=0.3,
+            device=self.device,
+        )
+        outputs = postprocess(
+            outputs,
+            need_nms=False,
+            image_shape=self.image_size,
+            input_shape=4,
+            letterbox_image=False,
+            nms_thres=0.4,
+        )
+        targets = decode_bbox(
+            self.cls_labels,
+            self.size_labels,
+            self.offset_labels,
+            confidence=0.3,
+            device=self.device,
+        )
+        targets = postprocess(
+            targets,
+            need_nms=False,
+            image_shape=self.image_size,
+            input_shape=4,
+            letterbox_image=False,
+            nms_thres=0.4,
+        )
+
         for i in range(self.batch_size):
-            cls_pred = self.cls_pred[i, :]
-            size_pred = self.size_pred[i, :]
-            offset_pred = self.offset_pred[i, :]
-            outputs = decode_bbox(
-                cls_pred, size_pred, offset_pred, confidence=0.3, device=self.device,
-            )
-            outputs = postprocess(
-                outputs,
-                need_nms=False,
-                image_shape=self.image_size,
-                input_shape=4,
-                letterbox_image=False,
-                nms_thres=0.4,
-            )
-            pred = {
-                "boxes": outputs[:, :4],
-                "scores": outputs[:, 4],
-                "labels": outputs[:, 5],
-            }
+            if not outputs[i] is None:
+                pred = {
+                    "boxes": torch.Tensor(outputs[i][:, :4]),
+                    "scores": torch.Tensor(outputs[i][:, 4]),
+                    "labels": torch.Tensor(outputs[i][:, 5]),
+                }
+            else:
+                pred = {
+                    "boxes": torch.Tensor(),
+                    "scores": torch.Tensor(),
+                    "labels": torch.Tensor(),
+                }
             preds.append(pred)
-            cls_labels = self.cls_labels[i, :]
-            size_labels = self.size_labels[i, :]
-            offset_labels = self.offset_labels[i, :]
-            outputs = decode_bbox(
-                cls_labels,
-                size_labels,
-                offset_labels,
-                confidence=0.3,
-                device=self.device,
-            )
-            outputs = postprocess(
-                outputs,
-                need_nms=False,
-                image_shape=self.image_size,
-                input_shape=4,
-                letterbox_image=False,
-                nms_thres=0.4,
-            )
-            label = {
-                "boxes": outputs[:, :4],
-                "scores": outputs[:, 4],
-                "labels": outputs[:, 5],
-            }
+            if not targets[i] is None:
+                label = {
+                    "boxes": torch.Tensor(targets[i][:, :4]),
+                    "scores": torch.Tensor(targets[i][:, 4]),
+                    "labels": torch.Tensor(targets[i][:, 5]),
+                }
+            else:
+                label = {
+                    "boxes": torch.Tensor(),
+                    "scores": torch.Tensor(),
+                    "labels": torch.Tensor(),
+                }
             labels.append(label)
         self.metrics_values = {}
         for key in self.metrics.keys():
-            self.metrics_values[key] = self.metrics[key](preds, labels)
+            self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
         self.running_loss += self.loss.item() * self.batch_size
         self.running_loss_cls += self.cls_loss.item() * self.batch_size
         self.running_loss_size += self.size_loss.item() * self.batch_size

@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import torch
+import torch.nn as nn
 
 from torch.utils.tensorboard import SummaryWriter
 import wandb
@@ -25,7 +26,7 @@ torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
 EXPERIMENT_NAME = "015_CenterNet_test"
-# wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
+wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
     num_classes = 6
@@ -44,7 +45,7 @@ if __name__ == "__main__":
         num_classes=num_classes,
     )
     # backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
-    backbone_model = create_model("resnet50", num_classes=num_classes)
+    backbone_model = create_model("resnet18", num_classes=num_classes)
     model = Model(num_classes, backbone_model)
     model = model.to(device)
 
@@ -152,11 +153,7 @@ if __name__ == "__main__":
         model=model,
         optimizer=optimizer,  # swa,
         num_epochs=500,
-        criterion=[
-            LabelSmoothingFocalLoss(num_classes, gamma=0.0, smoothing=0.0),
-            RegressionLoss(),
-            RegressionLoss(),
-        ],
+        criterion=[nn.CrossEntropyLoss(), RegressionLoss(), RegressionLoss(),],
         criterion_weights=[1.0, 0.1, 1.0],
         metrics=metrics,
         main_metric="mAP@0.5:0.95",

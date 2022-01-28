@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 import torch
 import torch.nn.functional as F
+import torchvision
 from torchvision.ops import nms
 from torch.utils.data import Dataset
 
@@ -64,7 +65,8 @@ def preprocess_input(image):
     image = np.array(image, dtype=np.float32)[:, :, ::-1]
     mean = [0.40789655, 0.44719303, 0.47026116]
     std = [0.2886383, 0.27408165, 0.27809834]
-    return (image / 255.0 - mean) / std
+    image = (image / 255.0 - mean) / std
+    return torchvision.transforms.ToTensor()(image).type(dtype=torch.float32)
 
 
 def cvtColor(image):
@@ -91,7 +93,7 @@ def decode_bbox(pred_cls, pred_size, pred_offset, confidence, device):
     for batch in range(b):
         heat_map = pred_cls[batch].permute(1, 2, 0).view([-1, c])
         pred_wh = pred_size[batch].permute(1, 2, 0).view([-1, 2])
-        pred_offset = pred_offset[batch].permute(1, 2, 0).view([-1, 2])
+        pred_off = pred_offset[batch].permute(1, 2, 0).view([-1, 2])
 
         yv, xv = torch.meshgrid(torch.arange(0, output_h), torch.arange(0, output_w))
         xv, yv = xv.flatten().float(), yv.flatten().float()
@@ -102,7 +104,7 @@ def decode_bbox(pred_cls, pred_size, pred_offset, confidence, device):
         mask = class_conf > confidence
 
         pred_wh_mask = pred_wh[mask]
-        pred_offset_mask = pred_offset[mask]
+        pred_offset_mask = pred_off[mask]
         if len(pred_wh_mask) == 0:
             detects.append([])
             continue
@@ -154,7 +156,7 @@ def centernet_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_
         ],
         axis=-1,
     )
-    boxes *= np.concatenate([image_shape, image_shape], axis=-1)
+    boxes *= image_shape  # np.concatenate([image_shape, image_shape], axis=-1)
     return boxes
 
 
@@ -189,7 +191,7 @@ def postprocess(
             )
 
         if output[i] is not None:
-            output[i] = output[i].cpu().numpy()
+            output[i] = output[i].cpu().detach().numpy()
             box_xy, box_wh = (
                 (output[i][:, 0:2] + output[i][:, 2:4]) / 2,
                 output[i][:, 2:4] - output[i][:, 0:2],
@@ -270,8 +272,11 @@ class CenternetDataset(Dataset):
                 target_size[ct_int[0], ct_int[1]] = 1.0 * w, 1.0 * h
                 target_offset[ct_int[0], ct_int[1]] = ct - ct_int
                 target_regression_mask[ct_int[0], ct_int[1]] = 1
+        target_cls = np.transpose(target_cls, (2, 0, 1))
+        target_size = np.transpose(target_size, (2, 0, 1))
+        target_offset = np.transpose(target_offset, (2, 0, 1))
 
-        image = np.transpose(preprocess_input(image), (2, 0, 1))
+        image = preprocess_input(image)
 
         return image, target_cls, target_size, target_offset, target_regression_mask
 
