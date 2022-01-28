@@ -209,9 +209,6 @@ class CenternetDataset(Dataset):
         self.data_path = data_path + suffix
         with open(self.data_path) as file:
             self.annotation_lines = file.readlines()
-        # for line in self.annotation_lines:
-        #    if not os.path.isfile(line.strip("\n")):
-        #        del line
         self.length = len(self.annotation_lines)
         self.input_shape = (input_shape, input_shape)
         self.output_shape = (
