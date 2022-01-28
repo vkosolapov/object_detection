@@ -131,12 +131,14 @@ if __name__ == "__main__":
         "mAP@0.5": MeanAveragePrecision(
             box_format="xywh",
             iou_thresholds=[0.5],
+            rec_thresholds=[0.0],
             max_detection_thresholds=[100],
             class_metrics=False,
         ),
         "mAP@0.5:0.95": MeanAveragePrecision(
             box_format="xywh",
             iou_thresholds=[(50.0 + th * 5.0) / 100.0 for th in range(10)],
+            rec_thresholds=[0.0],
             max_detection_thresholds=[100],
             class_metrics=False,
         ),
