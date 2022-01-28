@@ -104,7 +104,7 @@ class TrainLoop:
             nms_thres=0.4,
         )
 
-        for i in range(self.batch_size):
+        for i in range(len(outputs)):
             if not outputs[i] is None:
                 pred = {
                     "boxes": torch.Tensor(outputs[i][:, :4]),
