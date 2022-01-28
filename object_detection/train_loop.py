@@ -7,6 +7,7 @@ from tqdm import tqdm
 import copy
 
 from data.dataloader import DataLoader
+from data.dataset import decode_bbox, postprocess
 
 
 class TrainLoop:
@@ -34,6 +35,7 @@ class TrainLoop:
         self.writer = SummaryWriter(f"./runs/{experiment_name}")
         self.device = device
         self.batch_size = batch_size
+        self.image_size = image_size
         self.data_loaders = {
             "train": DataLoader(
                 datadir=datadir,
@@ -69,11 +71,56 @@ class TrainLoop:
         self.checkpoint_file = checkpoint_file
 
     def evaluate_minibatch(self):
+        preds = []
+        labels = []
+        for i in range(self.batch_size):
+            cls_pred = self.cls_pred[i, :]
+            size_pred = self.size_pred[i, :]
+            offset_pred = self.offset_pred[i, :]
+            outputs = decode_bbox(
+                cls_pred, size_pred, offset_pred, confidence=0.3, device=self.device,
+            )
+            outputs = postprocess(
+                outputs,
+                need_nms=False,
+                image_shape=self.image_size,
+                input_shape=4,
+                letterbox_image=False,
+                nms_thres=0.4,
+            )
+            pred = {
+                "boxes": outputs[:, :4],
+                "scores": outputs[:, 4],
+                "labels": outputs[:, 5],
+            }
+            preds.append(pred)
+            cls_labels = self.cls_labels[i, :]
+            size_labels = self.size_labels[i, :]
+            offset_labels = self.offset_labels[i, :]
+            outputs = decode_bbox(
+                cls_labels,
+                size_labels,
+                offset_labels,
+                confidence=0.3,
+                device=self.device,
+            )
+            outputs = postprocess(
+                outputs,
+                need_nms=False,
+                image_shape=self.image_size,
+                input_shape=4,
+                letterbox_image=False,
+                nms_thres=0.4,
+            )
+            label = {
+                "boxes": outputs[:, :4],
+                "scores": outputs[:, 4],
+                "labels": outputs[:, 5],
+            }
+            labels.append(label)
         self.metrics_values = {}
         for key in self.metrics.keys():
-            self.metrics_values[key] = self.metrics[key](
-                self.preds.to("cpu"), self.labels.to("cpu")
-            )
+            self.metrics_values[key] = self.metrics[key](preds, labels)
         self.running_loss += self.loss.item() * self.batch_size
         self.running_loss_cls += self.cls_loss.item() * self.batch_size
         self.running_loss_size += self.size_loss.item() * self.batch_size
@@ -170,13 +217,15 @@ class TrainLoop:
             self.offset_labels = offset_labels.to(self.device)
             self.mask_labels = mask_labels.to(self.device)
             with torch.set_grad_enabled(True):
-                cls, size, offset = self.model(self.inputs)
-                self.cls_loss = self.criterion[0](cls, self.cls_labels)
+                self.cls_pred, self.size_pred, self.offset_pred = self.model(
+                    self.inputs
+                )
+                self.cls_loss = self.criterion[0](self.cls_pred, self.cls_labels)
                 self.size_loss = self.criterion[1](
-                    size, self.size_labels, self.mask_labels
+                    self.size_pred, self.size_labels, self.mask_labels
                 )
                 self.offset_loss = self.criterion[2](
-                    offset, self.offset_labels, self.mask_labels
+                    self.offset_pred, self.offset_labels, self.mask_labels
                 )
                 self.loss = (
                     self.cls_loss * self.criterion_weights[0]
@@ -217,13 +266,15 @@ class TrainLoop:
             self.offset_labels = offset_labels.to(self.device)
             self.mask_labels = mask_labels.to(self.device)
             with torch.set_grad_enabled(False):
-                cls, size, offset = self.model(self.inputs)
-                self.cls_loss = self.criterion[0](cls, self.cls_labels)
+                self.cls_pred, self.size_pred, self.offset_pred = self.model(
+                    self.inputs
+                )
+                self.cls_loss = self.criterion[0](self.cls_pred, self.cls_labels)
                 self.size_loss = self.criterion[1](
-                    size, self.size_labels, self.mask_labels
+                    self.size_pred, self.size_labels, self.mask_labels
                 )
                 self.offset_loss = self.criterion[2](
-                    offset, self.offset_labels, self.mask_labels
+                    self.offset_pred, self.offset_labels, self.mask_labels
                 )
                 self.loss = (
                     self.cls_loss * self.criterion_weights[0]
