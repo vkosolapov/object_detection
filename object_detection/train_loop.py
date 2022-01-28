@@ -176,7 +176,7 @@ class TrainLoop:
         self.epoch_loss_size = self.running_loss_size / dataset_size
         self.epoch_loss_offset = self.running_loss_offset / dataset_size
         for key in self.metrics.keys():
-            self.metrics_values[key] = self.metrics[key].compute()
+            self.metrics_values[key] = self.metrics[key].compute()["map"]
             self.metrics[key].reset()
 
     def log_epoch(self, phase, epoch):
