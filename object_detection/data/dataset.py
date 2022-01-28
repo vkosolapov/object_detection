@@ -1,3 +1,4 @@
+import os
 import math
 import numpy as np
 from PIL import Image
@@ -206,9 +207,15 @@ class CenternetDataset(Dataset):
         self.data_path = data_path + suffix
         with open(self.data_path) as file:
             self.annotation_lines = file.readlines()
+        # for line in self.annotation_lines:
+        #    if not os.path.isfile(line.strip("\n")):
+        #        del line
         self.length = len(self.annotation_lines)
-        self.input_shape = input_shape
-        self.output_shape = (int(input_shape[0] / stride), int(input_shape[1] / stride))
+        self.input_shape = (input_shape, input_shape)
+        self.output_shape = (
+            int(self.input_shape[0] / stride),
+            int(self.input_shape[1] / stride),
+        )
         self.num_classes = num_classes
 
     def __len__(self):
@@ -269,7 +276,7 @@ class CenternetDataset(Dataset):
         return image, target_cls, target_size, target_offset, target_regression_mask
 
     def get_data(self, annotation_line, input_shape):
-        image = Image.open(annotation_line)
+        image = Image.open(annotation_line.strip("\n"))
         image = cvtColor(image)
         iw, ih = image.size
         w, h = input_shape
@@ -285,20 +292,24 @@ class CenternetDataset(Dataset):
         new_image.paste(image, (dx, dy))
         image_data = np.array(new_image, np.float32)
 
-        with open(annotation_line.replace("images", "labels")) as file:
+        with open(
+            annotation_line.replace("images", "labels")
+            .replace("jpg", "txt")
+            .strip("\n")
+        ) as file:
             labels = file.readlines()
         labels_items = []
         for label in labels:
-            label_items = label.split(" ")
+            label_items = label.strip("\n").split(" ")
             label_items.append(label_items.pop(0))
-            label_items[0] *= int(iw)
-            label_items[1] *= int(ih)
-            label_items[2] *= int(iw)
+            label_items[0] = int(float(label_items[0]) * iw)
+            label_items[1] = int(float(label_items[1]) * ih)
+            label_items[2] = int(float(label_items[2]) * iw)
             label_items[2] += label_items[0]
-            label_items[3] *= int(ih)
+            label_items[3] = int(float(label_items[3]) * ih)
             label_items[3] += label_items[1]
             labels_items.append(label_items)
-        labels = np.array([np.array(label_items) for label_items in labels_items])
+        labels = np.array(labels_items, dtype=np.int32)
 
         if len(labels) > 0:
             labels[:, [0, 2]] = labels[:, [0, 2]] * nw / iw + dx
