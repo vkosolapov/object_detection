@@ -1,14 +1,11 @@
 import torch.nn as nn
 
-from backbone.timm_backbone import TIMMBackbone
-from head.centernet import CenterNet
-
 
 class Model(nn.Module):
-    def __init__(self, num_classes, backbone):
+    def __init__(self, backbone, head):
         super().__init__()
-        self.backbone = TIMMBackbone(backbone)
-        self.head = CenterNet(num_classes, backbone)
+        self.backbone = backbone
+        self.head = head
 
     def forward(self, x):
         x = self.backbone(x)

@@ -14,6 +14,8 @@ from timm.models.resnet import _create_resnet, Bottleneck
 from timm.models.sknet import SelectiveKernelBottleneck
 from timm.models.resnest import ResNestBottleneck
 from timm.models.res2net import Bottle2neck
+from backbone.timm_backbone import TIMMBackbone
+from head.centernet import CenterNet
 from model import Model
 from loss import RegressionLoss, LabelSmoothingFocalLoss
 import torch.optim as optim
@@ -46,7 +48,9 @@ if __name__ == "__main__":
     )
     # backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
     backbone_model = create_model("resnet18", num_classes=num_classes)
-    model = Model(num_classes, backbone_model)
+    backbone_model = TIMMBackbone(backbone_model)
+    head_model = CenterNet(backbone_model, num_classes)
+    model = Model(backbone_model, head_model)
     model = model.to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.0001)

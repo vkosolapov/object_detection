@@ -2,7 +2,7 @@ import torch.nn as nn
 
 
 class CenterNet(nn.Module):
-    def __init__(self, num_classes, backbone):
+    def __init__(self, backbone, num_classes):
         super().__init__()
         channels = 0
         modules = list(backbone.modules())
