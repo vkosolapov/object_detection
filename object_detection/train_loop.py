@@ -88,23 +88,10 @@ class TrainLoop:
             letterbox_image=False,
             nms_thres=0.4,
         )
-        targets = decode_bbox(
-            self.cls_labels,
-            self.size_labels,
-            self.offset_labels,
-            confidence=0.3,
-            device=self.device,
-        )
-        targets = postprocess(
-            targets,
-            need_nms=False,
-            image_shape=self.image_size,
-            input_shape=4,
-            letterbox_image=False,
-            nms_thres=0.4,
-        )
 
+        self.labels = self.labels.cpu()
         for i in range(len(outputs)):
+            labels_count = self.labels_count[i]
             if not outputs[i] is None:
                 pred = {
                     "boxes": torch.Tensor(outputs[i][:, :4]),
@@ -118,16 +105,18 @@ class TrainLoop:
                     "labels": torch.Tensor(),
                 }
             preds.append(pred)
-            if not targets[i] is None:
+            if not self.labels[i] is None:
                 label = {
-                    "boxes": torch.Tensor(targets[i][:, :4]),
-                    "scores": torch.Tensor(targets[i][:, 4]),
-                    "labels": torch.Tensor(targets[i][:, 5]),
+                    "boxes": torch.Tensor(self.labels[i, :labels_count, :4]).view(
+                        labels_count, 4
+                    ),
+                    "labels": torch.Tensor(self.labels[i, :labels_count, 4]).view(
+                        labels_count
+                    ),
                 }
             else:
                 label = {
                     "boxes": torch.Tensor(),
-                    "scores": torch.Tensor(),
                     "labels": torch.Tensor(),
                 }
             labels.append(label)
@@ -221,14 +210,25 @@ class TrainLoop:
         self.running_loss_cls = 0.0
         self.running_loss_size = 0.0
         self.running_loss_offset = 0.0
-        for i, (inputs, cls_labels, size_labels, offset_labels, mask_labels) in tqdm(
-            enumerate(self.data_loaders["train"].data_loader)
-        ):
+        for (
+            i,
+            (
+                inputs,
+                cls_labels,
+                size_labels,
+                offset_labels,
+                mask_labels,
+                labels,
+                labels_count,
+            ),
+        ) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
             self.inputs = inputs.to(self.device)
             self.cls_labels = cls_labels.to(self.device)
             self.size_labels = size_labels.to(self.device)
             self.offset_labels = offset_labels.to(self.device)
             self.mask_labels = mask_labels.to(self.device)
+            self.labels = labels.to(self.device)
+            self.labels_count = labels_count
             with torch.set_grad_enabled(True):
                 self.cls_pred, self.size_pred, self.offset_pred = self.model(
                     self.inputs
@@ -270,14 +270,25 @@ class TrainLoop:
         self.running_loss_cls = 0.0
         self.running_loss_size = 0.0
         self.running_loss_offset = 0.0
-        for i, (inputs, cls_labels, size_labels, offset_labels, mask_labels) in tqdm(
-            enumerate(self.data_loaders["val"].data_loader)
-        ):
+        for (
+            i,
+            (
+                inputs,
+                cls_labels,
+                size_labels,
+                offset_labels,
+                mask_labels,
+                labels,
+                labels_count,
+            ),
+        ) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
             self.inputs = inputs.to(self.device)
             self.cls_labels = cls_labels.to(self.device)
             self.size_labels = size_labels.to(self.device)
             self.offset_labels = offset_labels.to(self.device)
             self.mask_labels = mask_labels.to(self.device)
+            self.labels = labels.to(self.device)
+            self.labels_count = labels_count
             with torch.set_grad_enabled(False):
                 self.cls_pred, self.size_pred, self.offset_pred = self.model(
                     self.inputs

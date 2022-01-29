@@ -275,7 +275,24 @@ class CenternetDataset(Dataset):
 
         image = preprocess_input(image)
 
-        return image, target_cls, target_size, target_offset, target_regression_mask
+        if len(labels.shape) < 2:
+            labels = np.expand_dims(labels, axis=1)
+        labels_count = labels.shape[0]
+        labels = F.pad(
+            torch.Tensor(labels),
+            (0, 5 - labels.shape[1], 0, 100 - labels.shape[0]),
+            "constant",
+            0.0,
+        )
+        return (
+            image,
+            target_cls,
+            target_size,
+            target_offset,
+            target_regression_mask,
+            labels,
+            labels_count,
+        )
 
     def get_data(self, annotation_line, input_shape):
         image = Image.open(annotation_line.strip("\n"))
