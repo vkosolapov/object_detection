@@ -27,7 +27,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "016_CenterNet_test_2"
+EXPERIMENT_NAME = "017_CenterNet_ImageNet_weights"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         num_classes=num_classes,
     )
     # backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
-    backbone_model = create_model("resnet18", num_classes=num_classes)
+    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
     backbone_model = TIMMBackbone(backbone_model)
     head_model = CenterNet(backbone_model, num_classes)
     model = Model(backbone_model, head_model)
