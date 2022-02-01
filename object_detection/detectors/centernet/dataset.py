@@ -28,6 +28,7 @@ def gaussian_radius(det_size, min_overlap=0.7):
     c3 = (min_overlap - 1) * width * height
     sq3 = np.sqrt(b3 ** 2 - 4 * a3 * c3)
     r3 = (b3 + sq3) / 2
+
     return min(r1, r2, r3)
 
 
@@ -55,7 +56,7 @@ def draw_gaussian(heatmap, center, radius, k=1):
     masked_gaussian = gaussian[
         radius - top : radius + bottom, radius - left : radius + right
     ]
-    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
+    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
         np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
     return heatmap
 
@@ -158,6 +159,8 @@ class CenternetDataset(Dataset):
             "constant",
             0.0,
         )
+        labels[:, 2] += labels[:, 0]
+        labels[:, 3] += labels[:, 1]
         return (
             image,
             labels_count,
@@ -296,7 +299,7 @@ def centernet_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_
         ],
         axis=-1,
     )
-    boxes *= image_shape  # np.concatenate([image_shape, image_shape], axis=-1)
+    boxes *= image_shape
     return boxes
 
 
@@ -305,8 +308,7 @@ def postprocess(
 ):
     output = [None for _ in range(len(prediction))]
 
-    for i, image_pred in enumerate(prediction):
-        detections = prediction[i]
+    for i, detections in enumerate(prediction):
         if len(detections) == 0:
             continue
         unique_labels = detections[:, -1].cpu().unique()

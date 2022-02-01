@@ -30,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "018_CenterNet_refactoring"
+EXPERIMENT_NAME = "015_CenterNet_baseline"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -157,14 +157,14 @@ if __name__ == "__main__":
 
     metrics = {
         "mAP@0.5": MeanAveragePrecision(
-            box_format="xywh",
+            box_format="xyxy",
             iou_thresholds=[0.5],
             rec_thresholds=[0.0],
             max_detection_thresholds=[100],
             class_metrics=False,
         ),
         "mAP@0.5:0.95": MeanAveragePrecision(
-            box_format="xywh",
+            box_format="xyxy",
             iou_thresholds=[(50.0 + th * 5.0) / 100.0 for th in range(10)],
             rec_thresholds=[0.0],
             max_detection_thresholds=[100],
