@@ -1,7 +1,9 @@
+from functools import partial
 import random
 import numpy as np
 import torch
 import torch.nn as nn
+from torchvision import transforms
 
 from torch.utils.tensorboard import SummaryWriter
 import wandb
@@ -9,6 +11,7 @@ import wandb
 from train_loop import TrainLoop
 import albumentations as A
 from albumentations.augmentations.transforms import CoarseDropout
+from dataloader import augment
 from timm import create_model
 from timm.models.resnet import _create_resnet
 from timm.models.resnest import ResNestBottleneck
@@ -41,11 +44,6 @@ if __name__ == "__main__":
     num_epochs = 500
     early_stopping = 20
     checkpoint_file = None  # "checkpoints/checkpoint_139.pth",
-
-    datasets = {
-        "train": CenternetDataset(datadir, "train", num_classes, image_size, stride),
-        "val": CenternetDataset(datadir, "val", num_classes, image_size, stride),
-    }
 
     augmentations = A.Compose(
         [
@@ -95,6 +93,35 @@ if __name__ == "__main__":
         p=1,
     )
 
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+
+    transform = {
+        "train": transforms.Compose(
+            [
+                partial(augment, augmentation_pipeline=augmentations),
+                transforms.ToPILImage(),
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std),
+            ]
+        ),
+        "val": transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std),
+            ]
+        ),
+    }
+
+    datasets = {
+        "train": CenternetDataset(datadir, "train", num_classes, image_size, stride),
+        "val": CenternetDataset(datadir, "val", num_classes, image_size, stride),
+    }
+
     backbone_args = dict(
         block=ResNestBottleneck,
         layers=[2, 2, 2, 2],  # [3, 4, 6, 3],
@@ -126,7 +153,7 @@ if __name__ == "__main__":
     }
 
     losses_computer = compute_losses
-    postprocessor = postprocess_predictions
+    predictions_postprocessor = postprocess_predictions
 
     metrics = {
         "mAP@0.5": MeanAveragePrecision(
@@ -190,7 +217,7 @@ if __name__ == "__main__":
         criterion=criterion,
         criterion_weights=criterion_weights,
         losses_computer=losses_computer,
-        postprocessor=postprocessor,
+        predictions_postprocessor=predictions_postprocessor,
         metrics=metrics,
         main_metric=main_metric,
         scheduler=scheduler,

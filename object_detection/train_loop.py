@@ -23,7 +23,7 @@ class TrainLoop:
         criterion,
         criterion_weights,
         losses_computer,
-        postprocessor,
+        predictions_postprocessor,
         metrics,
         main_metric,
         scheduler=None,
@@ -40,14 +40,12 @@ class TrainLoop:
                 dataset=datasets["train"],
                 phase="train",
                 batch_size=batch_size,
-                augmentations=None,
                 workers=workers,
             ),
             "val": DataLoader(
                 dataset=datasets["val"],
                 phase="val",
                 batch_size=batch_size,
-                augmentations=None,
                 workers=workers,
             ),
         }
@@ -60,7 +58,7 @@ class TrainLoop:
         self.running_losses = {}
         self.epoch_losses = {}
         self.losses_computer = losses_computer
-        self.postprocessor = postprocessor
+        self.predictions_postprocessor = predictions_postprocessor
         self.metrics = metrics
         self.metrics_values = {}
         self.main_metric = main_metric
@@ -75,7 +73,9 @@ class TrainLoop:
 
         preds = []
         labels = []
-        outputs = self.postprocessor(self.pred, self.image_size, self.device)
+        outputs = self.predictions_postprocessor(
+            self.pred, self.image_size, self.device
+        )
 
         self.labels = self.labels.cpu()
         for i in range(len(outputs)):
@@ -187,8 +187,8 @@ class TrainLoop:
             self.labels_count = batch[1]
             self.labels = batch[2].to(self.device)
             self.targets = batch[3:]
-            for i in range(len(self.targets)):
-                self.targets[i] = self.targets[i].to(self.device)
+            for j in range(len(self.targets)):
+                self.targets[j] = self.targets[j].to(self.device)
             with torch.set_grad_enabled(True):
                 self.pred = self.model(self.inputs)
                 self.losses_computer(
@@ -219,13 +219,13 @@ class TrainLoop:
     def test_epoch(self, epoch):
         self.model.eval()
         self.running_loss = 0.0
-        for (i, batch) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
+        for (i, batch) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
             self.inputs = batch[0].to(self.device)
             self.labels_count = batch[1]
             self.labels = batch[2].to(self.device)
             self.targets = batch[3:]
-            for i in range(len(self.targets)):
-                self.targets[i] = self.targets[i].to(self.device)
+            for j in range(len(self.targets)):
+                self.targets[j] = self.targets[j].to(self.device)
             with torch.set_grad_enabled(False):
                 self.pred = self.model(self.inputs)
                 self.losses_computer(
