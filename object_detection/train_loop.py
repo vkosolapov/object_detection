@@ -1,10 +1,9 @@
-import torch
-
-from torch.utils.tensorboard import SummaryWriter
-
 import time
 from tqdm import tqdm
 import copy
+import torch
+
+from torch.utils.tensorboard import SummaryWriter
 
 from dataloader import DataLoader
 
@@ -23,6 +22,7 @@ class TrainLoop:
         num_epochs,
         criterion,
         criterion_weights,
+        losses_computer,
         postprocessor,
         metrics,
         main_metric,
@@ -59,6 +59,7 @@ class TrainLoop:
         self.losses = {}
         self.running_losses = {}
         self.epoch_losses = {}
+        self.losses_computer = losses_computer
         self.postprocessor = postprocessor
         self.metrics = metrics
         self.metrics_values = {}
@@ -181,35 +182,17 @@ class TrainLoop:
         self.running_loss = 0.0
         for key in self.criterion.keys():
             self.running_losses[key] = 0.0
-        for (
-            i,
-            (
-                inputs,
-                cls_labels,
-                size_labels,
-                offset_labels,
-                mask_labels,
-                labels,
-                labels_count,
-            ),
-        ) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
-            self.inputs = inputs.to(self.device)
-            self.cls_labels = cls_labels.to(self.device)
-            self.size_labels = size_labels.to(self.device)
-            self.offset_labels = offset_labels.to(self.device)
-            self.mask_labels = mask_labels.to(self.device)
-            self.labels = labels.to(self.device)
-            self.labels_count = labels_count
+        for (i, batch) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
+            self.inputs = batch[0].to(self.device)
+            self.labels_count = batch[1]
+            self.labels = batch[2].to(self.device)
+            self.targets = batch[3:]
+            for i in range(len(self.targets)):
+                self.targets[i] = self.targets[i].to(self.device)
             with torch.set_grad_enabled(True):
                 self.pred = self.model(self.inputs)
-                self.losses["cls"] = self.criterion["cls"](
-                    self.pred["cls"], self.cls_labels
-                )
-                self.losses["size"] = self.criterion["size"](
-                    self.pred["size"], self.size_labels, self.mask_labels
-                )
-                self.losses["offset"] = self.criterion["offset"](
-                    self.pred["offset"], self.offset_labels, self.mask_labels
+                self.losses_computer(
+                    self.pred, self.targets, self.criterion, self.losses
                 )
                 self.loss = 0
                 for key in self.criterion.keys():
@@ -236,37 +219,17 @@ class TrainLoop:
     def test_epoch(self, epoch):
         self.model.eval()
         self.running_loss = 0.0
-        for key in self.criterion.keys():
-            self.running_losses[key] = 0.0
-        for (
-            i,
-            (
-                inputs,
-                cls_labels,
-                size_labels,
-                offset_labels,
-                mask_labels,
-                labels,
-                labels_count,
-            ),
-        ) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
-            self.inputs = inputs.to(self.device)
-            self.cls_labels = cls_labels.to(self.device)
-            self.size_labels = size_labels.to(self.device)
-            self.offset_labels = offset_labels.to(self.device)
-            self.mask_labels = mask_labels.to(self.device)
-            self.labels = labels.to(self.device)
-            self.labels_count = labels_count
+        for (i, batch) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
+            self.inputs = batch[0].to(self.device)
+            self.labels_count = batch[1]
+            self.labels = batch[2].to(self.device)
+            self.targets = batch[3:]
+            for i in range(len(self.targets)):
+                self.targets[i] = self.targets[i].to(self.device)
             with torch.set_grad_enabled(False):
                 self.pred = self.model(self.inputs)
-                self.losses["cls"] = self.criterion["cls"](
-                    self.pred["cls"], self.cls_labels
-                )
-                self.losses["size"] = self.criterion["size"](
-                    self.pred["size"], self.size_labels, self.mask_labels
-                )
-                self.losses["offset"] = self.criterion["offset"](
-                    self.pred["offset"], self.offset_labels, self.mask_labels
+                self.losses_computer(
+                    self.pred, self.targets, self.criterion, self.losses
                 )
                 self.loss = 0
                 for key in self.criterion.keys():

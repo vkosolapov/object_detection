@@ -160,12 +160,12 @@ class CenternetDataset(Dataset):
         )
         return (
             image,
+            labels_count,
+            labels,
             target_cls,
             target_size,
             target_offset,
             target_regression_mask,
-            labels,
-            labels_count,
         )
 
     def get_data(self, annotation_line, input_shape):
@@ -354,3 +354,4 @@ def postprocess_predictions(pred, image_size, device):
         letterbox_image=False,
         nms_thres=0.4,
     )
+    return outputs

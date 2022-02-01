@@ -14,3 +14,9 @@ class RegressionLoss(nn.Module):
         loss = F.l1_loss(pred * expand_mask, target * expand_mask, reduction="sum")
         loss = loss / (mask.sum() + 1e-4)
         return loss
+
+
+def compute_losses(pred, labels, criterion, losses):
+    losses["cls"] = criterion["cls"](pred["cls"], labels[0])
+    losses["size"] = criterion["size"](pred["size"], labels[1], labels[3])
+    losses["offset"] = criterion["offset"](pred["offset"], labels[2], labels[3])

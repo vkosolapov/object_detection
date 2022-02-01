@@ -7,19 +7,20 @@ from torch.utils.tensorboard import SummaryWriter
 import wandb
 
 from train_loop import TrainLoop
-from detectors.centernet.dataset import CenternetDataset, postprocess_predictions
 import albumentations as A
 from albumentations.augmentations.transforms import CoarseDropout
 from timm import create_model
 from timm.models.resnet import _create_resnet
 from timm.models.resnest import ResNestBottleneck
 from backbone import TIMMBackbone
-from detectors.centernet.model import CenterNet
 from model import Model
-from detectors.centernet.loss import RegressionLoss
 import torch.optim as optim
 from torchcontrib.optim import SWA
 from torchmetrics.detection.map import MeanAveragePrecision
+
+from detectors.centernet.dataset import CenternetDataset, postprocess_predictions
+from detectors.centernet.model import CenterNet
+from detectors.centernet.loss import RegressionLoss, compute_losses
 
 random.seed(0)
 np.random.seed(0)
@@ -44,56 +45,6 @@ if __name__ == "__main__":
     datasets = {
         "train": CenternetDataset(datadir, "train", num_classes, image_size, stride),
         "val": CenternetDataset(datadir, "val", num_classes, image_size, stride),
-    }
-
-    backbone_args = dict(
-        block=ResNestBottleneck,
-        layers=[2, 2, 2, 2],  # [3, 4, 6, 3],
-        cardinality=32,
-        base_width=4,
-        # block_args=dict(attn_layer="se", sk_kwargs=dict(split_input=True), scale=4), # SKNet
-        block_args=dict(radix=2, avd=True, avd_first=False),  # ResNeSt
-        stem_width=32,
-        stem_type="deep",
-        avg_down=True,
-        num_classes=num_classes,
-    )
-    backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
-    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
-    backbone_model = TIMMBackbone(backbone_model)
-    head_model = CenterNet(backbone_model, num_classes)
-    model = Model(backbone_model, head_model)
-    model = model.to(device)
-
-    optimizer = optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.0001)
-    # swa = SWA(optimizer_conv, swa_start=10, swa_freq=5, swa_lr=0.05)
-    swa = SWA(optimizer)
-    # scheduler = CyclicCosineDecayLR(
-    #    optimizer,
-    #    warmup_epochs=5,
-    #    warmup_start_lr=0.005,
-    #    warmup_linear=False,
-    #    init_decay_epochs=5,
-    #    min_decay_lr=0.001,
-    #    restart_lr=0.01,
-    #    restart_interval=10,
-    #    # restart_interval_multiplier=1.2,
-    # )
-    scheduler = None
-
-    grad_init = {
-        "gradinit_lr": 1e-3,
-        "gradinit_iters": 300,
-        "gradinit_alg": "adam",
-        "gradinit_eta": 0.1,
-        "gradinit_min_scale": 0.01,
-        "gradinit_grad_clip": 1,
-        "gradinit_gamma": float("inf"),
-        "gradinit_normalize_grad": False,
-        "gradinit_resume": "",
-        "gradinit_bsize": -1,
-        "batch_no_overlap": False,
-        "expname": "default",
     }
 
     augmentations = A.Compose(
@@ -144,6 +95,25 @@ if __name__ == "__main__":
         p=1,
     )
 
+    backbone_args = dict(
+        block=ResNestBottleneck,
+        layers=[2, 2, 2, 2],  # [3, 4, 6, 3],
+        cardinality=32,
+        base_width=4,
+        # block_args=dict(attn_layer="se", sk_kwargs=dict(split_input=True), scale=4), # SKNet
+        block_args=dict(radix=2, avd=True, avd_first=False),  # ResNeSt
+        stem_width=32,
+        stem_type="deep",
+        avg_down=True,
+        num_classes=num_classes,
+    )
+    backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
+    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
+    backbone_model = TIMMBackbone(backbone_model)
+    head_model = CenterNet(backbone_model, num_classes)
+    model = Model(backbone_model, head_model)
+    model = model.to(device)
+
     criterion = {
         "cls": nn.CrossEntropyLoss(),
         "size": RegressionLoss(),
@@ -155,6 +125,7 @@ if __name__ == "__main__":
         "offset": 1.0,
     }
 
+    losses_computer = compute_losses
     postprocessor = postprocess_predictions
 
     metrics = {
@@ -175,6 +146,37 @@ if __name__ == "__main__":
     }
     main_metric = "mAP@0.5:0.95"
 
+    optimizer = optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.0001)
+    # swa = SWA(optimizer_conv, swa_start=10, swa_freq=5, swa_lr=0.05)
+    swa = SWA(optimizer)
+    # scheduler = CyclicCosineDecayLR(
+    #    optimizer,
+    #    warmup_epochs=5,
+    #    warmup_start_lr=0.005,
+    #    warmup_linear=False,
+    #    init_decay_epochs=5,
+    #    min_decay_lr=0.001,
+    #    restart_lr=0.01,
+    #    restart_interval=10,
+    #    # restart_interval_multiplier=1.2,
+    # )
+    scheduler = None
+
+    grad_init = {
+        "gradinit_lr": 1e-3,
+        "gradinit_iters": 300,
+        "gradinit_alg": "adam",
+        "gradinit_eta": 0.1,
+        "gradinit_min_scale": 0.01,
+        "gradinit_grad_clip": 1,
+        "gradinit_gamma": float("inf"),
+        "gradinit_normalize_grad": False,
+        "gradinit_resume": "",
+        "gradinit_bsize": -1,
+        "batch_no_overlap": False,
+        "expname": "default",
+    }
+
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
         device=device,
@@ -187,6 +189,7 @@ if __name__ == "__main__":
         num_epochs=num_epochs,
         criterion=criterion,
         criterion_weights=criterion_weights,
+        losses_computer=losses_computer,
         postprocessor=postprocessor,
         metrics=metrics,
         main_metric=main_metric,
