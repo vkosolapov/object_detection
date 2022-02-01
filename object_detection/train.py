@@ -7,17 +7,16 @@ from torch.utils.tensorboard import SummaryWriter
 import wandb
 
 from train_loop import TrainLoop
+from detectors.centernet.dataset import CenternetDataset
 import albumentations as A
 from albumentations.augmentations.transforms import CoarseDropout
 from timm import create_model
-from timm.models.resnet import _create_resnet, Bottleneck
-from timm.models.sknet import SelectiveKernelBottleneck
+from timm.models.resnet import _create_resnet
 from timm.models.resnest import ResNestBottleneck
-from timm.models.res2net import Bottle2neck
-from backbone.timm_backbone import TIMMBackbone
-from head.centernet import CenterNet
+from backbone import TIMMBackbone
+from detectors.centernet.model import CenterNet
 from model import Model
-from loss import RegressionLoss, LabelSmoothingFocalLoss
+from detectors.centernet.loss import RegressionLoss
 import torch.optim as optim
 from torchcontrib.optim import SWA
 from torchmetrics.detection.map import MeanAveragePrecision
@@ -27,12 +26,20 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "017_CenterNet_ImageNet_weights"
+EXPERIMENT_NAME = "018_CenterNet_refactoring"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
+    datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
+    image_size = 1280
+    stride = 4
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    datasets = {
+        "train": CenternetDataset(datadir, "train", num_classes, image_size, stride),
+        "val": CenternetDataset(datadir, "val", num_classes, image_size, stride),
+    }
 
     backbone_args = dict(
         block=ResNestBottleneck,
@@ -46,7 +53,7 @@ if __name__ == "__main__":
         avg_down=True,
         num_classes=num_classes,
     )
-    # backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
+    backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
     backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
     backbone_model = TIMMBackbone(backbone_model)
     head_model = CenterNet(backbone_model, num_classes)
@@ -152,9 +159,8 @@ if __name__ == "__main__":
         experiment_name=EXPERIMENT_NAME,
         device=device,
         workers=4,
-        datadir="data/AFO/PART_1/PART_1",
-        num_classes=num_classes,
-        image_size=640,
+        datasets=datasets,
+        image_size=image_size,
         batch_size=32,
         model=model,
         optimizer=optimizer,  # swa,

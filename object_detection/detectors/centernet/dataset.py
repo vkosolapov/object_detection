@@ -1,4 +1,3 @@
-import os
 import math
 import numpy as np
 from PIL import Image
@@ -203,7 +202,7 @@ def postprocess(
 
 
 class CenternetDataset(Dataset):
-    def __init__(self, data_path, phase, num_classes, input_shape, stride, transforms):
+    def __init__(self, data_path, phase, num_classes, input_shape, stride):
         super(CenternetDataset, self).__init__()
         suffix = "/train.txt" if phase == "train" else "/validation.txt"
         self.data_path = data_path + suffix

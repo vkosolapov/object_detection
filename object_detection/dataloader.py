@@ -1,9 +1,7 @@
-import os
 import numpy as np
 from functools import partial
 import torch
-from torchvision import datasets, transforms
-from data.dataset import CenternetDataset
+from torchvision import transforms
 
 
 mean = np.array([0.485, 0.456, 0.406])
@@ -17,22 +15,11 @@ def augment(img, augmentation_pipeline):
 
 class DataLoader:
     def __init__(
-        self,
-        datadir,
-        phase,
-        num_classes,
-        image_size,
-        stride,
-        batch_size,
-        augmentations,
-        workers,
+        self, dataset, phase, batch_size, augmentations, workers,
     ):
         data_transforms = self.transforms(augmentations)
-        image_dataset = CenternetDataset(
-            datadir, phase, num_classes, image_size, stride, data_transforms[phase]
-        )
         data_loader = torch.utils.data.DataLoader(
-            image_dataset,
+            dataset,
             batch_size=batch_size,
             shuffle=(phase == "train"),
             drop_last=(phase == "train"),
@@ -41,7 +28,7 @@ class DataLoader:
             pin_memory=True,
         )
         self.data_loader = data_loader
-        self.dataset_size = len(image_dataset)
+        self.dataset_size = len(dataset)
 
     def transforms(self, augmentations):
         return {

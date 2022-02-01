@@ -6,8 +6,8 @@ import time
 from tqdm import tqdm
 import copy
 
-from data.dataloader import DataLoader
-from data.dataset import decode_bbox, postprocess
+from dataloader import DataLoader
+from detectors.centernet.dataset import decode_bbox, postprocess
 
 
 class TrainLoop:
@@ -16,8 +16,7 @@ class TrainLoop:
         experiment_name,
         device,
         workers,
-        datadir,
-        num_classes,
+        datasets,
         image_size,
         batch_size,
         model,
@@ -38,21 +37,15 @@ class TrainLoop:
         self.image_size = image_size
         self.data_loaders = {
             "train": DataLoader(
-                datadir=datadir,
+                dataset=datasets["train"],
                 phase="train",
-                num_classes=num_classes,
-                image_size=image_size,
-                stride=4,
                 batch_size=batch_size,
                 augmentations=None,
                 workers=workers,
             ),
             "val": DataLoader(
-                datadir=datadir,
+                dataset=datasets["val"],
                 phase="val",
-                num_classes=num_classes,
-                image_size=image_size,
-                stride=4,
                 batch_size=batch_size,
                 augmentations=None,
                 workers=workers,
