@@ -143,6 +143,18 @@ if __name__ == "__main__":
         ],
         p=1,
     )
+
+    criterion = {
+        "cls": nn.CrossEntropyLoss(),
+        "size": RegressionLoss(),
+        "offset": RegressionLoss(),
+    }
+    criterion_weights = {
+        "cls": 1.0,
+        "size": 0.1,
+        "offset": 1.0,
+    }
+
     metrics = {
         "mAP@0.5": MeanAveragePrecision(
             box_format="xywh",
@@ -171,8 +183,8 @@ if __name__ == "__main__":
         model=model,
         optimizer=optimizer,  # swa,
         num_epochs=num_epochs,
-        criterion=[nn.CrossEntropyLoss(), RegressionLoss(), RegressionLoss(),],
-        criterion_weights=[1.0, 0.1, 1.0],
+        criterion=criterion,
+        criterion_weights=criterion_weights,
         metrics=metrics,
         main_metric=main_metric,
         scheduler=scheduler,

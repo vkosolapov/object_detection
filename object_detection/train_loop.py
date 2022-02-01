@@ -56,6 +56,9 @@ class TrainLoop:
         self.num_epochs = num_epochs
         self.criterion = criterion
         self.criterion_weights = criterion_weights
+        self.losses = {}
+        self.running_losses = {}
+        self.epoch_losses = {}
         self.metrics = metrics
         self.metrics_values = {}
         self.main_metric = main_metric
@@ -64,12 +67,16 @@ class TrainLoop:
         self.checkpoint_file = checkpoint_file
 
     def evaluate_minibatch(self):
+        self.running_loss += self.loss.item() * self.batch_size
+        for key in self.criterion.keys():
+            self.running_losses[key] += self.losses[key].item() * self.batch_size
+
         preds = []
         labels = []
         outputs = decode_bbox(
-            self.cls_pred,
-            self.size_pred,
-            self.offset_pred,
+            self.pred["cls"],
+            self.pred["size"],
+            self.pred["offset"],
             confidence=0.3,
             device=self.device,
         )
@@ -116,10 +123,6 @@ class TrainLoop:
         self.metrics_values = {}
         for key in self.metrics.keys():
             self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
-        self.running_loss += self.loss.item() * self.batch_size
-        self.running_loss_cls += self.cls_loss.item() * self.batch_size
-        self.running_loss_size += self.size_loss.item() * self.batch_size
-        self.running_loss_offset += self.offset_loss.item() * self.batch_size
 
     def log_minibatch(self, phase, epoch, minibatch):
         dataset_size = self.data_loaders[phase].dataset_size
@@ -128,21 +131,12 @@ class TrainLoop:
             self.loss.item(),
             dataset_size // self.batch_size * epoch + minibatch,
         )
-        self.writer.add_scalar(
-            f"batch_loss_cls/{phase}",
-            self.cls_loss.item(),
-            dataset_size // self.batch_size * epoch + minibatch,
-        )
-        self.writer.add_scalar(
-            f"batch_loss_size/{phase}",
-            self.size_loss.item(),
-            dataset_size // self.batch_size * epoch + minibatch,
-        )
-        self.writer.add_scalar(
-            f"batch_loss_offset/{phase}",
-            self.offset_loss.item(),
-            dataset_size // self.batch_size * epoch + minibatch,
-        )
+        for key in self.criterion.keys():
+            self.writer.add_scalar(
+                f"batch_loss_{key}/{phase}",
+                self.losses[key].item(),
+                dataset_size // self.batch_size * epoch + minibatch,
+            )
         for key in self.metrics.keys():
             self.writer.add_scalar(
                 f"batch_{key}/{phase}",
@@ -154,20 +148,18 @@ class TrainLoop:
     def evaluate_epoch(self, phase):
         dataset_size = self.data_loaders[phase].dataset_size
         self.epoch_loss = self.running_loss / dataset_size
-        self.epoch_loss_cls = self.running_loss_cls / dataset_size
-        self.epoch_loss_size = self.running_loss_size / dataset_size
-        self.epoch_loss_offset = self.running_loss_offset / dataset_size
+        for key in self.criterion.keys():
+            self.epoch_losses[key] = self.running_losses[key] / dataset_size
         for key in self.metrics.keys():
             self.metrics_values[key] = self.metrics[key].compute()["map"]
             self.metrics[key].reset()
 
     def log_epoch(self, phase, epoch):
         self.writer.add_scalar(f"epoch_loss/{phase}", self.epoch_loss, epoch)
-        self.writer.add_scalar(f"epoch_loss_cls/{phase}", self.epoch_loss_cls, epoch)
-        self.writer.add_scalar(f"epoch_loss_size/{phase}", self.epoch_loss_size, epoch)
-        self.writer.add_scalar(
-            f"epoch_loss_offset/{phase}", self.epoch_loss_offset, epoch
-        )
+        for key in self.criterion.keys():
+            self.writer.add_scalar(
+                f"epoch_loss_{key}/{phase}", self.epoch_losses[key], epoch
+            )
         for key in self.metrics.keys():
             self.writer.add_scalar(
                 f"epoch_{key}/{phase}", self.metrics_values[key], epoch
@@ -200,9 +192,8 @@ class TrainLoop:
     def train_epoch(self, epoch):
         self.model.train()
         self.running_loss = 0.0
-        self.running_loss_cls = 0.0
-        self.running_loss_size = 0.0
-        self.running_loss_offset = 0.0
+        for key in self.criterion.keys():
+            self.running_losses[key] = 0.0
         for (
             i,
             (
@@ -223,21 +214,19 @@ class TrainLoop:
             self.labels = labels.to(self.device)
             self.labels_count = labels_count
             with torch.set_grad_enabled(True):
-                self.cls_pred, self.size_pred, self.offset_pred = self.model(
-                    self.inputs
+                self.pred = self.model(self.inputs)
+                self.losses["cls"] = self.criterion["cls"](
+                    self.pred["cls"], self.cls_labels
                 )
-                self.cls_loss = self.criterion[0](self.cls_pred, self.cls_labels)
-                self.size_loss = self.criterion[1](
-                    self.size_pred, self.size_labels, self.mask_labels
+                self.losses["size"] = self.criterion["size"](
+                    self.pred["size"], self.size_labels, self.mask_labels
                 )
-                self.offset_loss = self.criterion[2](
-                    self.offset_pred, self.offset_labels, self.mask_labels
+                self.losses["offset"] = self.criterion["offset"](
+                    self.pred["offset"], self.offset_labels, self.mask_labels
                 )
-                self.loss = (
-                    self.cls_loss * self.criterion_weights[0]
-                    + self.size_loss * self.criterion_weights[1]
-                    + self.offset_loss * self.criterion_weights[2]
-                )
+                self.loss = 0
+                for key in self.criterion.keys():
+                    self.loss += self.losses[key] * self.criterion_weights[key]
                 self.optimizer.zero_grad()
                 self.loss.backward()
                 self.optimizer.step()
@@ -260,9 +249,8 @@ class TrainLoop:
     def test_epoch(self, epoch):
         self.model.eval()
         self.running_loss = 0.0
-        self.running_loss_cls = 0.0
-        self.running_loss_size = 0.0
-        self.running_loss_offset = 0.0
+        for key in self.criterion.keys():
+            self.running_losses[key] = 0.0
         for (
             i,
             (
@@ -283,21 +271,19 @@ class TrainLoop:
             self.labels = labels.to(self.device)
             self.labels_count = labels_count
             with torch.set_grad_enabled(False):
-                self.cls_pred, self.size_pred, self.offset_pred = self.model(
-                    self.inputs
+                self.pred = self.model(self.inputs)
+                self.losses["cls"] = self.criterion["cls"](
+                    self.pred["cls"], self.cls_labels
                 )
-                self.cls_loss = self.criterion[0](self.cls_pred, self.cls_labels)
-                self.size_loss = self.criterion[1](
-                    self.size_pred, self.size_labels, self.mask_labels
+                self.losses["size"] = self.criterion["size"](
+                    self.pred["size"], self.size_labels, self.mask_labels
                 )
-                self.offset_loss = self.criterion[2](
-                    self.offset_pred, self.offset_labels, self.mask_labels
+                self.losses["offset"] = self.criterion["offset"](
+                    self.pred["offset"], self.offset_labels, self.mask_labels
                 )
-                self.loss = (
-                    self.cls_loss * self.criterion_weights[0]
-                    + self.size_loss * self.criterion_weights[1]
-                    + self.offset_loss * self.criterion_weights[2]
-                )
+                self.loss = 0
+                for key in self.criterion.keys():
+                    self.loss += self.losses[key] * self.criterion_weights[key]
             self.evaluate_minibatch()
             self.log_minibatch("val", epoch, i)
         self.evaluate_epoch("val")
