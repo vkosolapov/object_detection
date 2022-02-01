@@ -30,11 +30,16 @@ EXPERIMENT_NAME = "018_CenterNet_refactoring"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    workers = 4
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
     image_size = 1280
     stride = 4
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    batch_size = 8
+    num_epochs = 500
+    early_stopping = 20
+    checkpoint_file = None  # "checkpoints/checkpoint_139.pth",
 
     datasets = {
         "train": CenternetDataset(datadir, "train", num_classes, image_size, stride),
@@ -154,24 +159,25 @@ if __name__ == "__main__":
             class_metrics=False,
         ),
     }
+    main_metric = "mAP@0.5:0.95"
 
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
         device=device,
-        workers=4,
+        workers=workers,
         datasets=datasets,
         image_size=image_size,
-        batch_size=32,
+        batch_size=batch_size,
         model=model,
         optimizer=optimizer,  # swa,
-        num_epochs=500,
+        num_epochs=num_epochs,
         criterion=[nn.CrossEntropyLoss(), RegressionLoss(), RegressionLoss(),],
         criterion_weights=[1.0, 0.1, 1.0],
         metrics=metrics,
-        main_metric="mAP@0.5:0.95",
+        main_metric=main_metric,
         scheduler=scheduler,
-        early_stopping=20,
-        # checkpoint_file="checkpoints/checkpoint_139.pth",
+        early_stopping=early_stopping,
+        checkpoint_file=checkpoint_file,
     )
 
     loop.train_model()
