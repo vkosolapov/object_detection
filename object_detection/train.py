@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 import wandb
 
 from train_loop import TrainLoop
-from detectors.centernet.dataset import CenternetDataset
+from detectors.centernet.dataset import CenternetDataset, postprocess_predictions
 import albumentations as A
 from albumentations.augmentations.transforms import CoarseDropout
 from timm import create_model
@@ -155,6 +155,8 @@ if __name__ == "__main__":
         "offset": 1.0,
     }
 
+    postprocessor = postprocess_predictions
+
     metrics = {
         "mAP@0.5": MeanAveragePrecision(
             box_format="xywh",
@@ -185,6 +187,7 @@ if __name__ == "__main__":
         num_epochs=num_epochs,
         criterion=criterion,
         criterion_weights=criterion_weights,
+        postprocessor=postprocessor,
         metrics=metrics,
         main_metric=main_metric,
         scheduler=scheduler,

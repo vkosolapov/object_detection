@@ -7,7 +7,6 @@ from tqdm import tqdm
 import copy
 
 from dataloader import DataLoader
-from detectors.centernet.dataset import decode_bbox, postprocess
 
 
 class TrainLoop:
@@ -24,6 +23,7 @@ class TrainLoop:
         num_epochs,
         criterion,
         criterion_weights,
+        postprocessor,
         metrics,
         main_metric,
         scheduler=None,
@@ -59,6 +59,7 @@ class TrainLoop:
         self.losses = {}
         self.running_losses = {}
         self.epoch_losses = {}
+        self.postprocessor = postprocessor
         self.metrics = metrics
         self.metrics_values = {}
         self.main_metric = main_metric
@@ -73,21 +74,7 @@ class TrainLoop:
 
         preds = []
         labels = []
-        outputs = decode_bbox(
-            self.pred["cls"],
-            self.pred["size"],
-            self.pred["offset"],
-            confidence=0.3,
-            device=self.device,
-        )
-        outputs = postprocess(
-            outputs,
-            need_nms=False,
-            image_shape=self.image_size,
-            input_shape=4,
-            letterbox_image=False,
-            nms_thres=0.4,
-        )
+        outputs = self.postprocessor(self.pred, self.image_size, self.device)
 
         self.labels = self.labels.cpu()
         for i in range(len(outputs)):
