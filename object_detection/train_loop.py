@@ -66,7 +66,7 @@ class TrainLoop:
         self.early_stopping = early_stopping
         self.checkpoint_file = checkpoint_file
 
-    def evaluate_minibatch(self):
+    def evaluate_minibatch(self, phase):
         self.running_loss += self.loss.item() * self.batch_size
         for key in self.criterion.keys():
             self.running_losses[key] += self.losses[key].item() * self.batch_size
@@ -77,40 +77,41 @@ class TrainLoop:
             self.pred, self.image_size, self.device
         )
 
-        self.labels = self.labels.cpu()
-        for i in range(len(outputs)):
-            labels_count = self.labels_count[i]
-            if not outputs[i] is None:
-                pred = {
-                    "boxes": torch.Tensor(outputs[i][:, :4]),
-                    "scores": torch.Tensor(outputs[i][:, 4]),
-                    "labels": torch.Tensor(outputs[i][:, 5]),
-                }
-            else:
-                pred = {
-                    "boxes": torch.Tensor(),
-                    "scores": torch.Tensor(),
-                    "labels": torch.Tensor(),
-                }
-            preds.append(pred)
-            if not self.labels[i] is None:
-                label = {
-                    "boxes": torch.Tensor(self.labels[i, :labels_count, :4]).view(
-                        labels_count, 4
-                    ),
-                    "labels": torch.Tensor(self.labels[i, :labels_count, 4]).view(
-                        labels_count
-                    ),
-                }
-            else:
-                label = {
-                    "boxes": torch.Tensor(),
-                    "labels": torch.Tensor(),
-                }
-            labels.append(label)
-        self.metrics_values = {}
-        for key in self.metrics.keys():
-            self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
+        if not phase == "train":
+            self.labels = self.labels.cpu()
+            for i in range(len(outputs)):
+                labels_count = self.labels_count[i]
+                if not outputs[i] is None:
+                    pred = {
+                        "boxes": torch.Tensor(outputs[i][:, :4]),
+                        "scores": torch.Tensor(outputs[i][:, 4]),
+                        "labels": torch.Tensor(outputs[i][:, 5]),
+                    }
+                else:
+                    pred = {
+                        "boxes": torch.Tensor(),
+                        "scores": torch.Tensor(),
+                        "labels": torch.Tensor(),
+                    }
+                preds.append(pred)
+                if not self.labels[i] is None:
+                    label = {
+                        "boxes": torch.Tensor(self.labels[i, :labels_count, :4]).view(
+                            labels_count, 4
+                        ),
+                        "labels": torch.Tensor(self.labels[i, :labels_count, 4]).view(
+                            labels_count
+                        ),
+                    }
+                else:
+                    label = {
+                        "boxes": torch.Tensor(),
+                        "labels": torch.Tensor(),
+                    }
+                labels.append(label)
+            self.metrics_values = {}
+            for key in self.metrics.keys():
+                self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
 
     def log_minibatch(self, phase, epoch, minibatch):
         dataset_size = self.data_loaders[phase].dataset_size
@@ -125,12 +126,13 @@ class TrainLoop:
                 self.losses[key].item(),
                 dataset_size // self.batch_size * epoch + minibatch,
             )
-        for key in self.metrics.keys():
-            self.writer.add_scalar(
-                f"batch_{key}/{phase}",
-                self.metrics_values[key],
-                dataset_size // self.batch_size * epoch + minibatch,
-            )
+        if not phase == "train":
+            for key in self.metrics.keys():
+                self.writer.add_scalar(
+                    f"batch_{key}/{phase}",
+                    self.metrics_values[key],
+                    dataset_size // self.batch_size * epoch + minibatch,
+                )
         self.writer.close()
 
     def evaluate_epoch(self, phase):
@@ -138,9 +140,10 @@ class TrainLoop:
         self.epoch_loss = self.running_loss / dataset_size
         for key in self.criterion.keys():
             self.epoch_losses[key] = self.running_losses[key] / dataset_size
-        for key in self.metrics.keys():
-            self.metrics_values[key] = self.metrics[key].compute()["map"]
-            self.metrics[key].reset()
+        if not phase == "train":
+            for key in self.metrics.keys():
+                self.metrics_values[key] = self.metrics[key].compute()["map"]
+                self.metrics[key].reset()
 
     def log_epoch(self, phase, epoch):
         self.writer.add_scalar(f"epoch_loss/{phase}", self.epoch_loss, epoch)
@@ -148,10 +151,11 @@ class TrainLoop:
             self.writer.add_scalar(
                 f"epoch_loss_{key}/{phase}", self.epoch_losses[key], epoch
             )
-        for key in self.metrics.keys():
-            self.writer.add_scalar(
-                f"epoch_{key}/{phase}", self.metrics_values[key], epoch
-            )
+        if not phase == "train":
+            for key in self.metrics.keys():
+                self.writer.add_scalar(
+                    f"epoch_{key}/{phase}", self.metrics_values[key], epoch
+                )
         self.writer.close()
 
     def log_norm(self, phase, epoch, minibatch):
@@ -200,7 +204,7 @@ class TrainLoop:
                 self.optimizer.zero_grad()
                 self.loss.backward()
                 self.optimizer.step()
-            self.evaluate_minibatch()
+            self.evaluate_minibatch("train")
             self.log_minibatch("train", epoch, i)
             self.log_norm("train", epoch, i)
         if self.scheduler:
@@ -234,7 +238,7 @@ class TrainLoop:
                 self.loss = 0
                 for key in self.criterion.keys():
                     self.loss += self.losses[key] * self.criterion_weights[key]
-            self.evaluate_minibatch()
+            self.evaluate_minibatch("val")
             self.log_minibatch("val", epoch, i)
         self.evaluate_epoch("val")
         self.log_epoch("val", epoch)
