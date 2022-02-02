@@ -38,9 +38,9 @@ if __name__ == "__main__":
     workers = 4
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
-    image_size = 1280
+    image_size = 640
     stride = 4
-    batch_size = 8
+    batch_size = 32
     num_epochs = 500
     early_stopping = 20
     checkpoint_file = None  # "checkpoints/checkpoint_139.pth",
