@@ -71,13 +71,12 @@ class TrainLoop:
         for key in self.criterion.keys():
             self.running_losses[key] += self.losses[key].item() * self.batch_size
 
-        preds = []
-        labels = []
-        outputs = self.predictions_postprocessor(
-            self.pred, self.image_size, self.device
-        )
-
         if not phase == "train":
+            preds = []
+            labels = []
+            outputs = self.predictions_postprocessor(
+                self.pred, self.image_size, self.device
+            )
             self.labels = self.labels.cpu()
             for i in range(len(outputs)):
                 labels_count = self.labels_count[i]
