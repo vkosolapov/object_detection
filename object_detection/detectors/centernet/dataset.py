@@ -159,8 +159,8 @@ class CenternetDataset(Dataset):
             "constant",
             0.0,
         )
-        labels[:, 2] += labels[:, 0]
-        labels[:, 3] += labels[:, 1]
+        # labels[:, 2] += labels[:, 0]
+        # labels[:, 3] += labels[:, 1]
         return (
             image,
             labels_count,
