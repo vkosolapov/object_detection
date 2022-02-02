@@ -222,6 +222,8 @@ class TrainLoop:
     def test_epoch(self, epoch):
         self.model.eval()
         self.running_loss = 0.0
+        for key in self.criterion.keys():
+            self.running_losses[key] = 0.0
         for (i, batch) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
             self.inputs = batch[0].to(self.device)
             self.labels_count = batch[1]
