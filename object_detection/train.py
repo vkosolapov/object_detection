@@ -30,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "016_CenterNet_LR_0_1"
+EXPERIMENT_NAME = "015_CenterNet_baseline"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -39,11 +39,10 @@ if __name__ == "__main__":
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
     image_size = 640
-    stride = 4
     batch_size = 32
     num_epochs = 500
     early_stopping = 100
-    learning_rate = 0.1
+    learning_rate = 0.01
     checkpoint_file = None  # "checkpoints/checkpoint_139.pth",
 
     augmentations = A.Compose(
@@ -119,8 +118,8 @@ if __name__ == "__main__":
     }
 
     datasets = {
-        "train": CenternetDataset(datadir, "train", num_classes, image_size, stride),
-        "val": CenternetDataset(datadir, "val", num_classes, image_size, stride),
+        "train": CenternetDataset(datadir, "train", num_classes, image_size),
+        "val": CenternetDataset(datadir, "val", num_classes, image_size),
     }
 
     backbone_args = dict(

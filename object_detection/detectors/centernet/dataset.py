@@ -79,7 +79,7 @@ def cvtColor(image):
 
 
 class CenternetDataset(Dataset):
-    def __init__(self, data_path, phase, num_classes, input_shape, stride):
+    def __init__(self, data_path, phase, num_classes, input_shape):
         super(CenternetDataset, self).__init__()
         suffix = "/train.txt" if phase == "train" else "/validation.txt"
         self.data_path = data_path + suffix
@@ -87,6 +87,7 @@ class CenternetDataset(Dataset):
             self.annotation_lines = file.readlines()
         self.length = len(self.annotation_lines)
         self.input_shape = (input_shape, input_shape)
+        stride = 4
         self.output_shape = (
             int(self.input_shape[0] / stride),
             int(self.input_shape[1] / stride),
@@ -199,11 +200,11 @@ class CenternetDataset(Dataset):
         for label in labels:
             label_items = label.strip("\n").split(" ")
             label_items.append(label_items.pop(0))
-            label_items[0] = int(float(label_items[0]) * iw)
-            label_items[1] = int(float(label_items[1]) * ih)
-            label_items[2] = int(float(label_items[2]) * iw)
+            label_items[0] = int(float(label_items[0]) * w)
+            label_items[1] = int(float(label_items[1]) * h)
+            label_items[2] = int(float(label_items[2]) * w)
             label_items[2] += label_items[0]
-            label_items[3] = int(float(label_items[3]) * ih)
+            label_items[3] = int(float(label_items[3]) * h)
             label_items[3] += label_items[1]
             labels_items.append(label_items)
         labels = np.array(labels_items, dtype=np.int32)
