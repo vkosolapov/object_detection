@@ -30,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "015_CenterNet_baseline"
+EXPERIMENT_NAME = "016_CenterNet_LR_0_1"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -42,7 +42,8 @@ if __name__ == "__main__":
     stride = 4
     batch_size = 32
     num_epochs = 500
-    early_stopping = 20
+    early_stopping = 100
+    learning_rate = 0.1
     checkpoint_file = None  # "checkpoints/checkpoint_139.pth",
 
     augmentations = A.Compose(
@@ -173,7 +174,7 @@ if __name__ == "__main__":
     }
     main_metric = "mAP@0.5:0.95"
 
-    optimizer = optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.0001)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.0001)
     # swa = SWA(optimizer_conv, swa_start=10, swa_freq=5, swa_lr=0.05)
     swa = SWA(optimizer)
     # scheduler = CyclicCosineDecayLR(
