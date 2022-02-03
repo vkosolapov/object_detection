@@ -200,11 +200,11 @@ class CenternetDataset(Dataset):
         for label in labels:
             label_items = label.strip("\n").split(" ")
             label_items.append(label_items.pop(0))
-            label_items[0] = int(float(label_items[0]) * w)
-            label_items[1] = int(float(label_items[1]) * h)
-            label_items[2] = int(float(label_items[2]) * w)
+            label_items[0] = int(float(label_items[0]) * iw)
+            label_items[1] = int(float(label_items[1]) * ih)
+            label_items[2] = int(float(label_items[2]) * iw)
             label_items[2] += label_items[0]
-            label_items[3] = int(float(label_items[3]) * h)
+            label_items[3] = int(float(label_items[3]) * ih)
             label_items[3] += label_items[1]
             labels_items.append(label_items)
         labels = np.array(labels_items, dtype=np.int32)
