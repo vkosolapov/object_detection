@@ -354,7 +354,7 @@ def postprocess_predictions(pred, image_size, device):
         outputs,
         need_nms=False,
         image_shape=image_size,
-        input_shape=4,
+        input_shape=image_size / 4,
         letterbox_image=False,
         nms_thres=0.4,
     )
