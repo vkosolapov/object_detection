@@ -79,6 +79,10 @@ class TrainLoop:
             outputs = self.predictions_postprocessor(
                 self.pred, self.image_size, self.device
             )
+            if self.draw_example:
+                reverted_labels = self.predictions_postprocessor(
+                    self.targets, self.image_size, self.device
+                )
             self.labels = self.labels.cpu()
             for i in range(len(outputs)):
                 labels_count = self.labels_count[i]
@@ -124,9 +128,11 @@ class TrainLoop:
                         .permute(2, 0, 1)
                         .type(torch.uint8)
                         .cpu(),
-                        label["boxes"],
+                        torch.from_numpy(reverted_labels[i][:, :4]),
                     )
                     self.writer.add_image("postprocessed_image", image)
+                    print(self.labels[i, :labels_count, :4])
+                    print(torch.from_numpy(reverted_labels[i][:, :4]))
                     self.draw_example = False
             self.metrics_values = {}
             for key in self.metrics.keys():

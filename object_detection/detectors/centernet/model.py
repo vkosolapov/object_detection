@@ -71,4 +71,4 @@ class CenterNet(nn.Module):
         cls = self.classification_head(x)
         size = self.size_head(x)
         offset = self.offset_head(x)
-        return {"cls": cls, "size": size, "offset": offset}
+        return (cls, size, offset)

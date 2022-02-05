@@ -177,6 +177,7 @@ class CenternetDataset(Dataset):
 
     def get_data(self, annotation_line, input_shape):
         image = Image.open(annotation_line.strip("\n"))
+        image = image.resize((self.input_shape[0], self.input_shape[1]), Image.LANCZOS)
         image = cvtColor(image)
         iw, ih = image.size
         w, h = input_shape
@@ -349,9 +350,7 @@ def postprocess(
 
 
 def postprocess_predictions(pred, image_size, device):
-    outputs = decode_bbox(
-        pred["cls"], pred["size"], pred["offset"], confidence=0.3, device=device,
-    )
+    outputs = decode_bbox(pred[0], pred[1], pred[2], confidence=0.3, device=device,)
     outputs = postprocess(
         outputs,
         need_nms=False,
