@@ -2,6 +2,7 @@ import time
 from tqdm import tqdm
 import copy
 import torch
+import torchvision
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -65,6 +66,7 @@ class TrainLoop:
         self.scheduler = scheduler
         self.early_stopping = early_stopping
         self.checkpoint_file = checkpoint_file
+        self.draw_example = True
 
     def evaluate_minibatch(self, phase):
         self.running_loss += self.loss.item() * self.batch_size
@@ -108,6 +110,24 @@ class TrainLoop:
                         "labels": torch.Tensor(),
                     }
                 labels.append(label)
+                if self.draw_example:
+                    image = torchvision.utils.draw_bounding_boxes(
+                        self.original_inputs[i]
+                        .permute(2, 0, 1)
+                        .type(torch.uint8)
+                        .cpu(),
+                        self.labels[i, :labels_count, :4],
+                    )
+                    self.writer.add_image("preprocessed_image", image)
+                    image = torchvision.utils.draw_bounding_boxes(
+                        self.original_inputs[i]
+                        .permute(2, 0, 1)
+                        .type(torch.uint8)
+                        .cpu(),
+                        label["boxes"],
+                    )
+                    self.writer.add_image("postprocessed_image", image)
+                    self.draw_example = False
             self.metrics_values = {}
             for key in self.metrics.keys():
                 self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
@@ -186,10 +206,11 @@ class TrainLoop:
         for key in self.criterion.keys():
             self.running_losses[key] = 0.0
         for (i, batch) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
-            self.inputs = batch[0].to(self.device)
-            self.labels_count = batch[1]
-            self.labels = batch[2].to(self.device)
-            self.targets = batch[3:]
+            self.original_inputs = batch[0].to(self.device)
+            self.inputs = batch[1].to(self.device)
+            self.labels_count = batch[2]
+            self.labels = batch[3].to(self.device)
+            self.targets = batch[4:]
             for j in range(len(self.targets)):
                 self.targets[j] = self.targets[j].to(self.device)
             with torch.set_grad_enabled(True):
@@ -225,10 +246,11 @@ class TrainLoop:
         for key in self.criterion.keys():
             self.running_losses[key] = 0.0
         for (i, batch) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
-            self.inputs = batch[0].to(self.device)
-            self.labels_count = batch[1]
-            self.labels = batch[2].to(self.device)
-            self.targets = batch[3:]
+            self.original_inputs = batch[0].to(self.device)
+            self.inputs = batch[1].to(self.device)
+            self.labels_count = batch[2]
+            self.labels = batch[3].to(self.device)
+            self.targets = batch[4:]
             for j in range(len(self.targets)):
                 self.targets[j] = self.targets[j].to(self.device)
             with torch.set_grad_enabled(False):

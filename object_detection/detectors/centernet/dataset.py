@@ -101,6 +101,7 @@ class CenternetDataset(Dataset):
         index = index % self.length
 
         image, labels = self.get_data(self.annotation_lines[index], self.input_shape)
+        original_image = image.copy()
         target_cls = np.zeros(
             (self.output_shape[0], self.output_shape[1], self.num_classes),
             dtype=np.float32,
@@ -164,6 +165,7 @@ class CenternetDataset(Dataset):
         # labels[:, 2] += labels[:, 0]
         # labels[:, 3] += labels[:, 1]
         return (
+            original_image,
             image,
             labels_count,
             labels,
