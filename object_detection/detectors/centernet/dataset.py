@@ -144,7 +144,7 @@ class CenternetDataset(Dataset):
                 target_cls[:, :, cls_id] = draw_gaussian(
                     target_cls[:, :, cls_id], ct_int, radius
                 )
-                target_size[ct_int[0], ct_int[1]] = 1.0 * w, 1.0 * h
+                target_size[ct_int[0], ct_int[1]] = 1.0 * h, 1.0 * w
                 target_offset[ct_int[0], ct_int[1]] = ct - ct_int
                 target_regression_mask[ct_int[0], ct_int[1]] = 1
         target_cls = np.transpose(target_cls, (2, 0, 1))
