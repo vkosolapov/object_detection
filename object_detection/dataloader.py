@@ -2,9 +2,10 @@ import numpy as np
 import torch
 
 
-def augment(img, augmentation_pipeline):
-    img = np.asarray(img)
-    return augmentation_pipeline(image=img)["image"]
+def augment(image, bboxes, augmentation_pipeline):
+    image = np.asarray(image)
+    result = augmentation_pipeline(image=image, bboxes=bboxes)
+    return result["image"], result["bboxes"]
 
 
 class DataLoader:

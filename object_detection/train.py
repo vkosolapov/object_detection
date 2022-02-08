@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "017_Focal_loss"
+EXPERIMENT_NAME = "018_Augmentations_basic"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -57,7 +57,7 @@ if __name__ == "__main__":
                     #    shear=(-15, 15),
                     # ),
                     A.ShiftScaleRotate(),
-                    A.RandomResizedCrop(256, 256),
+                    A.RandomResizedCrop(image_size, image_size),
                     A.HorizontalFlip(),
                     # A.VerticalFlip(),
                     # A.Transpose(),
@@ -75,7 +75,7 @@ if __name__ == "__main__":
                         hue_shift_limit=20, sat_shift_limit=20, val_shift_limit=20,
                     ),
                 ],
-                p=1.0,
+                p=0.0,
             ),
             A.OneOf(
                 [
@@ -85,41 +85,20 @@ if __name__ == "__main__":
                     A.GridDistortion(),
                     A.OpticalDistortion(distort_limit=2, shift_limit=0.5),
                 ],
-                p=0.5,
+                p=0.0,
             ),
             A.OneOf(
-                [A.GaussNoise(p=0.5), A.Blur(p=0.5), CoarseDropout(max_holes=5)], p=0.5
+                [A.GaussNoise(p=0.5), A.Blur(p=0.5), CoarseDropout(max_holes=5)], p=0.0
             ),
         ],
         p=1,
+        bbox_params=A.BboxParams(format="pascal_voc", min_area=16, min_visibility=0.1),
     )
 
-    mean = np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
-
-    transform = {
-        "train": transforms.Compose(
-            [
-                partial(augment, augmentation_pipeline=augmentations),
-                transforms.ToPILImage(),
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                transforms.Normalize(mean, std),
-            ]
-        ),
-        "val": transforms.Compose(
-            [
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                transforms.Normalize(mean, std),
-            ]
-        ),
-    }
-
     datasets = {
-        "train": CenternetDataset(datadir, "train", num_classes, image_size),
+        "train": CenternetDataset(
+            datadir, "train", num_classes, image_size, augmentations
+        ),
         "val": CenternetDataset(datadir, "val", num_classes, image_size),
     }
 

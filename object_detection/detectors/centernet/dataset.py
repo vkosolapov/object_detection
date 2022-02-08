@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torchvision
 from torchvision.ops import nms
 from torch.utils.data import Dataset
+from dataloader import augment
 
 
 def gaussian_radius(det_size, min_overlap=0.7):
@@ -79,8 +80,9 @@ def cvtColor(image):
 
 
 class CenternetDataset(Dataset):
-    def __init__(self, data_path, phase, num_classes, input_shape):
+    def __init__(self, data_path, phase, num_classes, input_shape, augmentations=None):
         super(CenternetDataset, self).__init__()
+        self.phase = phase
         suffix = "/train.txt" if phase == "train" else "/validation.txt"
         self.data_path = data_path + suffix
         with open(self.data_path) as file:
@@ -93,6 +95,7 @@ class CenternetDataset(Dataset):
             int(self.input_shape[1] / stride),
         )
         self.num_classes = num_classes
+        self.augmentations = augmentations
 
     def __len__(self):
         return self.length
@@ -162,8 +165,6 @@ class CenternetDataset(Dataset):
             "constant",
             0.0,
         )
-        # labels[:, 2] += labels[:, 0]
-        # labels[:, 3] += labels[:, 1]
         return (
             original_image,
             image,
@@ -178,20 +179,14 @@ class CenternetDataset(Dataset):
     def get_data(self, annotation_line, input_shape):
         image = Image.open(annotation_line.strip("\n"))
         image = image.resize((self.input_shape[0], self.input_shape[1]), Image.LANCZOS)
-        image = cvtColor(image)
+
         iw, ih = image.size
         w, h = input_shape
-
         scale = min(w / iw, h / ih)
         nw = int(iw * scale)
         nh = int(ih * scale)
         dx = (w - nw) // 2
         dy = (h - nh) // 2
-
-        image = image.resize((nw, nh), Image.BICUBIC)
-        new_image = Image.new("RGB", (w, h), (128, 128, 128))
-        new_image.paste(image, (dx, dy))
-        image_data = np.array(new_image, np.float32)
 
         with open(
             annotation_line.replace("images", "labels")
@@ -221,6 +216,16 @@ class CenternetDataset(Dataset):
             box_w = labels[:, 2] - labels[:, 0]
             box_h = labels[:, 3] - labels[:, 1]
             labels = labels[np.logical_and(box_w > 1, box_h > 1)]
+
+        image = cvtColor(image)
+        image = image.resize((nw, nh), Image.BICUBIC)
+        new_image = Image.new("RGB", (w, h), (128, 128, 128))
+        new_image.paste(image, (dx, dy))
+        if self.phase == "train":
+            image_data, labels = augment(new_image, labels, self.augmentations)
+            labels = np.array(labels, dtype=np.int32)
+        else:
+            image_data = np.array(new_image, np.float32)
 
         return image_data, labels
 
