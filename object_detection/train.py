@@ -17,20 +17,21 @@ from timm.models.resnet import _create_resnet
 from timm.models.resnest import ResNestBottleneck
 from backbone import TIMMBackbone
 from model import Model
+from loss import LabelSmoothingFocalLoss, RegressionLossWithMask
 import torch.optim as optim
 from torchcontrib.optim import SWA
 from torchmetrics.detection.map import MeanAveragePrecision
 
 from detectors.centernet.dataset import CenternetDataset, postprocess_predictions
 from detectors.centernet.model import CenterNet
-from detectors.centernet.loss import RegressionLoss, compute_losses
+from detectors.centernet.loss import compute_losses
 
 random.seed(0)
 np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "016_Smooth_L1_loss"
+EXPERIMENT_NAME = "017_Focal_loss"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -142,12 +143,17 @@ if __name__ == "__main__":
     model = model.to(device)
 
     criterion = {
-        "cls": nn.CrossEntropyLoss(),
-        "size": RegressionLoss(),
-        "offset": RegressionLoss(),
+        "cls": LabelSmoothingFocalLoss(
+            num_classes=num_classes,
+            one_hot_label_format=True,
+            gamma=2.0,
+            smoothing=0.1,
+        ),
+        "size": RegressionLossWithMask(smooth=True),
+        "offset": RegressionLossWithMask(smooth=True),
     }
     criterion_weights = {
-        "cls": 1.0,
+        "cls": 10.0,
         "size": 0.1,
         "offset": 1.0,
     }
