@@ -68,7 +68,7 @@ def preprocess_input(image):
     mean = [0.40789655, 0.44719303, 0.47026116]
     std = [0.2886383, 0.27408165, 0.27809834]
     image = (image / 255.0 - mean) / std
-    return torchvision.transforms.ToTensor()(image).type(dtype=torch.float32)
+    return torch.Tensor(image).type(dtype=torch.float32).permute(2, 0, 1)
 
 
 def cvtColor(image):
