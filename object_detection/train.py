@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "019_Test"
+EXPERIMENT_NAME = "019_CenterNet_debug"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -62,7 +62,7 @@ if __name__ == "__main__":
                     # A.VerticalFlip(),
                     # A.Transpose(),
                 ],
-                p=1.0,
+                p=0.0,
             ),
             A.OneOf(
                 [
@@ -91,7 +91,7 @@ if __name__ == "__main__":
                 [A.GaussNoise(p=0.5), A.Blur(p=0.5), CoarseDropout(max_holes=5)], p=0.0
             ),
         ],
-        p=1,
+        p=0.0,
         bbox_params=A.BboxParams(format="pascal_voc", min_area=16, min_visibility=0.1),
     )
 

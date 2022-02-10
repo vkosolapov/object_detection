@@ -10,22 +10,22 @@ from dataloader import augment
 
 
 def gaussian_radius(det_size, min_overlap=0.7):
-    height, width = det_size
+    width, height = det_size
 
     a1 = 1
-    b1 = height + width
+    b1 = width + height
     c1 = width * height * (1 - min_overlap) / (1 + min_overlap)
     sq1 = np.sqrt(b1 ** 2 - 4 * a1 * c1)
     r1 = (b1 + sq1) / 2
 
     a2 = 4
-    b2 = 2 * (height + width)
+    b2 = 2 * (width + height)
     c2 = (1 - min_overlap) * width * height
     sq2 = np.sqrt(b2 ** 2 - 4 * a2 * c2)
     r2 = (b2 + sq2) / 2
 
     a3 = 4 * min_overlap
-    b3 = -2 * min_overlap * (height + width)
+    b3 = -2 * min_overlap * (width + height)
     c3 = (min_overlap - 1) * width * height
     sq3 = np.sqrt(b3 ** 2 - 4 * a3 * c3)
     r3 = (b3 + sq3) / 2
@@ -35,7 +35,7 @@ def gaussian_radius(det_size, min_overlap=0.7):
 
 def gaussian2D(shape, sigma=1):
     m, n = [(ss - 1.0) / 2.0 for ss in shape]
-    y, x = np.ogrid[-m : m + 1, -n : n + 1]
+    x, y = np.ogrid[-m : m + 1, -n : n + 1]
 
     h = np.exp(-(x * x + y * y) / (2 * sigma * sigma))
     h[h < np.finfo(h.dtype).eps * h.max()] = 0
@@ -46,20 +46,20 @@ def draw_gaussian(heatmap, center, radius, k=1):
     diameter = 2 * radius + 1
     gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
 
-    y, x = int(center[0]), int(center[1])
+    x, y = int(center[0]), int(center[1])
 
-    height, width = heatmap.shape[0:2]
+    width, height = heatmap.shape[0:2]
 
     left, right = min(x, radius), min(width - x, radius + 1)
     top, bottom = min(y, radius), min(height - y, radius + 1)
 
-    masked_heatmap = heatmap[y - top : y + bottom, x - left : x + right]
+    masked_heatmap = heatmap[x - left : x + right, y - top : y + bottom]
     masked_gaussian = gaussian[
-        radius - top : radius + bottom, radius - left : radius + right
+        radius - left : radius + right, radius - top : radius + bottom
     ]
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
         masked_heatmap = np.maximum(masked_heatmap, masked_gaussian * k)
-        heatmap[y - top : y + bottom, x - left : x + right] = masked_heatmap
+        heatmap[x - left : x + right, y - top : y + bottom] = masked_heatmap
     return heatmap
 
 
@@ -137,8 +137,8 @@ class CenternetDataset(Dataset):
             cls_id = int(labels[i, -1])
 
             w, h = box[2] - box[0], box[3] - box[1]
-            if h > 0 and w > 0:
-                radius = gaussian_radius((math.ceil(h), math.ceil(w)))
+            if w > 0 and h > 0:
+                radius = gaussian_radius((math.ceil(w), math.ceil(h)))
                 radius = max(0, int(radius))
                 ct = np.array(
                     [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2], dtype=np.float32
@@ -147,7 +147,7 @@ class CenternetDataset(Dataset):
                 target_cls[:, :, cls_id] = draw_gaussian(
                     target_cls[:, :, cls_id], ct_int, radius
                 )
-                target_size[ct_int[0], ct_int[1]] = 1.0 * h, 1.0 * w
+                target_size[ct_int[0], ct_int[1]] = 1.0 * w, 1.0 * h
                 target_offset[ct_int[0], ct_int[1]] = ct - ct_int
                 target_regression_mask[ct_int[0], ct_int[1]] = 1
         target_cls = np.transpose(target_cls, (2, 0, 1))
@@ -241,14 +241,14 @@ def pool_nms(heat, kernel=3):
 def decode_bbox(pred_cls, pred_size, pred_offset, confidence, device):
     pred_cls = pool_nms(pred_cls)
 
-    b, c, output_h, output_w = pred_cls.shape
+    b, c, output_w, output_h = pred_cls.shape
     detects = []
     for batch in range(b):
         heat_map = pred_cls[batch].permute(1, 2, 0).view([-1, c])
         pred_wh = pred_size[batch].permute(1, 2, 0).view([-1, 2])
         pred_off = pred_offset[batch].permute(1, 2, 0).view([-1, 2])
 
-        yv, xv = torch.meshgrid(torch.arange(0, output_h), torch.arange(0, output_w))
+        xv, yv = torch.meshgrid(torch.arange(0, output_w), torch.arange(0, output_h))
         xv, yv = xv.flatten().float(), yv.flatten().float()
         xv = xv.to(device)
         yv = yv.to(device)
@@ -285,8 +285,8 @@ def decode_bbox(pred_cls, pred_size, pred_offset, confidence, device):
 
 
 def centernet_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image):
-    box_yx = box_xy[..., ::-1]
-    box_hw = box_wh[..., ::-1]
+    # box_yx = box_xy[..., ::-1]
+    # box_hw = box_wh[..., ::-1]
     input_shape = np.array(input_shape)
     image_shape = np.array(image_shape)
 
@@ -295,11 +295,11 @@ def centernet_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_
         offset = (input_shape - new_shape) / 2.0 / input_shape
         scale = input_shape / new_shape
 
-        box_yx = (box_yx - offset) * scale
-        box_hw *= scale
+        box_xy = (box_xy - offset) * scale
+        box_wh *= scale
 
-    box_mins = box_yx - (box_hw / 2.0)
-    box_maxes = box_yx + (box_hw / 2.0)
+    box_mins = box_xy - (box_wh / 2.0)
+    box_maxes = box_xy + (box_wh / 2.0)
     boxes = np.concatenate(
         [
             box_mins[..., 0:1],
