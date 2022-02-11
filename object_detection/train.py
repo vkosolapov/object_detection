@@ -37,7 +37,7 @@ EXPERIMENT_NAME = "021_IoU_loss"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
-    device = "cpu"  # torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     workers = 4
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6

@@ -9,7 +9,7 @@ def augment(image, bboxes, augmentation_pipeline):
 
 
 class DataLoader:
-    def __init__(self, dataset, phase, batch_size, workers):
+    def __init__(self, dataset, phase, batch_size, workers, device):
         data_loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
@@ -17,7 +17,7 @@ class DataLoader:
             drop_last=(phase == "train"),
             num_workers=workers,
             persistent_workers=True,
-            pin_memory=False,  # torch.cuda.is_available(),
+            pin_memory=(device != "cpu"),
         )
         self.data_loader = data_loader
         self.dataset_size = len(dataset)

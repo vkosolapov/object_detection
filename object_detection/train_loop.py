@@ -42,12 +42,14 @@ class TrainLoop:
                 phase="train",
                 batch_size=batch_size,
                 workers=workers,
+                device=device,
             ),
             "val": DataLoader(
                 dataset=datasets["val"],
                 phase="val",
                 batch_size=batch_size,
                 workers=workers,
+                device=device,
             ),
         }
         self.model = model
