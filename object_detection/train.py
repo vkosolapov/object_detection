@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "019_CenterNet_debug"
+EXPERIMENT_NAME = "020_Loss_weights"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     }
     criterion_weights = {
         "cls": 10.0,
-        "size": 0.1,
+        "size": 0.01,
         "offset": 1.0,
     }
 
