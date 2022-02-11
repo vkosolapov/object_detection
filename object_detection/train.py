@@ -17,8 +17,10 @@ from timm.models.resnet import _create_resnet
 from timm.models.resnest import ResNestBottleneck
 from backbone import TIMMBackbone
 from model import Model
-from loss import LabelSmoothingFocalLoss, RegressionLossWithMask
+from loss import LabelSmoothingFocalLoss, RegressionLossWithMask, IoULossWithMask
 import torch.optim as optim
+from optimizer import Ranger
+from scheduler import CyclicCosineDecayLR
 from torchcontrib.optim import SWA
 from torchmetrics.detection.map import MeanAveragePrecision
 
@@ -31,11 +33,11 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "020_Loss_and_Aug"
+EXPERIMENT_NAME = "021_IoU_loss"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cpu"  # torch.device("cuda" if torch.cuda.is_available() else "cpu")
     workers = 4
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
@@ -107,6 +109,7 @@ if __name__ == "__main__":
 
     backbone_args = dict(
         block=ResNestBottleneck,
+        act_layer=nn.Mish,
         layers=[2, 2, 2, 2],  # [3, 4, 6, 3],
         cardinality=32,
         base_width=4,
@@ -115,10 +118,11 @@ if __name__ == "__main__":
         stem_width=32,
         stem_type="deep",
         avg_down=True,
-        num_classes=num_classes,
     )
-    backbone_model = _create_resnet("ecaresnet50d", False, **backbone_args)
-    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
+    backbone_model = _create_resnet(
+        "ecaresnet50d", num_classes=num_classes, pretrained=False, **backbone_args
+    )
+    # backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
     backbone_model = TIMMBackbone(backbone_model)
     head_model = CenterNet(backbone_model, num_classes)
     model = Model(backbone_model, head_model)
@@ -132,13 +136,15 @@ if __name__ == "__main__":
             alpha=0.999,
             smoothing=0.1,
         ),
-        "size": RegressionLossWithMask(smooth=True),
-        "offset": RegressionLossWithMask(smooth=True),
+        "size": None,  # RegressionLossWithMask(smooth=True),
+        "offset": None,  # RegressionLossWithMask(smooth=True),
+        "box": IoULossWithMask(CIoU=True),
     }
     criterion_weights = {
         "cls": 10.0,
-        "size": 0.01,
-        "offset": 1.0,
+        "size": None,  # 0.01,
+        "offset": None,  # 1.0,
+        "box": 1.0,
     }
 
     losses_computer = compute_losses
@@ -162,21 +168,20 @@ if __name__ == "__main__":
     }
     main_metric = "mAP@0.5:0.95"
 
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.0001)
+    optimizer = Ranger(model.parameters(), lr=learning_rate, weight_decay=0.0001)
     # swa = SWA(optimizer_conv, swa_start=10, swa_freq=5, swa_lr=0.05)
     swa = SWA(optimizer)
-    # scheduler = CyclicCosineDecayLR(
-    #    optimizer,
-    #    warmup_epochs=5,
-    #    warmup_start_lr=0.005,
-    #    warmup_linear=False,
-    #    init_decay_epochs=5,
-    #    min_decay_lr=0.001,
-    #    restart_lr=0.01,
-    #    restart_interval=10,
-    #    # restart_interval_multiplier=1.2,
-    # )
-    scheduler = None
+    scheduler = CyclicCosineDecayLR(
+        optimizer,
+        warmup_epochs=10,
+        warmup_start_lr=0.005,
+        warmup_linear=False,
+        init_decay_epochs=10,
+        min_decay_lr=0.001,
+        restart_lr=0.01,
+        restart_interval=20,
+        # restart_interval_multiplier=1.2,
+    )
 
     grad_init = {
         "gradinit_lr": 1e-3,

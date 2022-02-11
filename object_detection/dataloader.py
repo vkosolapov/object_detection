@@ -17,7 +17,7 @@ class DataLoader:
             drop_last=(phase == "train"),
             num_workers=workers,
             persistent_workers=True,
-            pin_memory=True,
+            pin_memory=False,  # torch.cuda.is_available(),
         )
         self.data_loader = data_loader
         self.dataset_size = len(dataset)

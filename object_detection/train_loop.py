@@ -71,6 +71,8 @@ class TrainLoop:
     def evaluate_minibatch(self, phase):
         self.running_loss += self.loss.item() * self.batch_size
         for key in self.criterion.keys():
+            if self.criterion[key] is None:
+                continue
             self.running_losses[key] += self.losses[key].item() * self.batch_size
 
         if not phase == "train":
@@ -146,6 +148,8 @@ class TrainLoop:
             dataset_size // self.batch_size * epoch + minibatch,
         )
         for key in self.criterion.keys():
+            if self.criterion[key] is None:
+                continue
             self.writer.add_scalar(
                 f"batch_loss_{key}/{phase}",
                 self.losses[key].item(),
@@ -164,6 +168,8 @@ class TrainLoop:
         dataset_size = self.data_loaders[phase].dataset_size
         self.epoch_loss = self.running_loss / dataset_size
         for key in self.criterion.keys():
+            if self.criterion[key] is None:
+                continue
             self.epoch_losses[key] = self.running_losses[key] / dataset_size
         if not phase == "train":
             for key in self.metrics.keys():
@@ -173,6 +179,8 @@ class TrainLoop:
     def log_epoch(self, phase, epoch):
         self.writer.add_scalar(f"epoch_loss/{phase}", self.epoch_loss, epoch)
         for key in self.criterion.keys():
+            if self.criterion[key] is None:
+                continue
             self.writer.add_scalar(
                 f"epoch_loss_{key}/{phase}", self.epoch_losses[key], epoch
             )
@@ -210,6 +218,8 @@ class TrainLoop:
         self.model.train()
         self.running_loss = 0.0
         for key in self.criterion.keys():
+            if self.criterion[key] is None:
+                continue
             self.running_losses[key] = 0.0
         for (i, batch) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
             self.original_inputs = batch[0].to(self.device)
@@ -226,6 +236,8 @@ class TrainLoop:
                 )
                 self.loss = 0
                 for key in self.criterion.keys():
+                    if self.criterion[key] is None:
+                        continue
                     self.loss += self.losses[key] * self.criterion_weights[key]
                 self.optimizer.zero_grad()
                 self.loss.backward()
@@ -250,6 +262,8 @@ class TrainLoop:
         self.model.eval()
         self.running_loss = 0.0
         for key in self.criterion.keys():
+            if self.criterion[key] is None:
+                continue
             self.running_losses[key] = 0.0
         for (i, batch) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
             self.original_inputs = batch[0].to(self.device)
@@ -266,6 +280,8 @@ class TrainLoop:
                 )
                 self.loss = 0
                 for key in self.criterion.keys():
+                    if self.criterion[key] is None:
+                        continue
                     self.loss += self.losses[key] * self.criterion_weights[key]
             self.evaluate_minibatch("val")
             self.log_minibatch("val", epoch, i)
