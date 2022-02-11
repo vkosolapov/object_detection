@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "020_Loss_weights"
+EXPERIMENT_NAME = "020_Loss_and_Aug"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -50,19 +50,21 @@ if __name__ == "__main__":
         [
             A.OneOf(
                 [
-                    # A.Affine(
-                    #    scale=(-0.1, 0.1),
-                    #    translate_percent=(-0.0625, 0.0625),
-                    #    rotate=(-45, 45),
-                    #    shear=(-15, 15),
-                    # ),
+                    A.Affine(
+                        scale=(-0.1, 0.1),
+                        translate_percent=(-0.0625, 0.0625),
+                        rotate=(-10, 10),
+                        #    shear=(-15, 15),
+                    ),
                     # A.ShiftScaleRotate(),
-                    # A.RandomResizedCrop(image_size, image_size),
+                    A.RandomResizedCrop(
+                        image_size, image_size, scale=(0.9, 1.0), ratio=(0.9, 1.1)
+                    ),
                     A.HorizontalFlip(),
-                    # A.VerticalFlip(),
-                    # A.Transpose(),
+                    A.VerticalFlip(),
+                    A.Transpose(),
                 ],
-                p=0.0,
+                p=1.0,
             ),
             A.OneOf(
                 [
@@ -75,7 +77,7 @@ if __name__ == "__main__":
                         hue_shift_limit=20, sat_shift_limit=20, val_shift_limit=20,
                     ),
                 ],
-                p=0.0,
+                p=1.0,
             ),
             A.OneOf(
                 [
@@ -88,10 +90,11 @@ if __name__ == "__main__":
                 p=0.0,
             ),
             A.OneOf(
-                [A.GaussNoise(p=0.5), A.Blur(p=0.5), CoarseDropout(max_holes=5)], p=0.0
+                [A.GaussNoise(p=0.5), A.Blur(p=0.5), CoarseDropout(max_holes=5, p=0.0)],
+                p=0.01,
             ),
         ],
-        p=0.0,
+        p=1.0,
         bbox_params=A.BboxParams(format="pascal_voc", min_area=16, min_visibility=0.1),
     )
 
@@ -126,6 +129,7 @@ if __name__ == "__main__":
             num_classes=num_classes,
             one_hot_label_format=True,
             gamma=2.0,
+            alpha=0.999,
             smoothing=0.1,
         ),
         "size": RegressionLossWithMask(smooth=True),
