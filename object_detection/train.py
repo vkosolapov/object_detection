@@ -122,7 +122,7 @@ if __name__ == "__main__":
     backbone_model = _create_resnet(
         "ecaresnet50d", num_classes=num_classes, pretrained=False, **backbone_args
     )
-    # backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
+    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
     backbone_model = TIMMBackbone(backbone_model)
     head_model = CenterNet(backbone_model, num_classes)
     model = Model(backbone_model, head_model)
