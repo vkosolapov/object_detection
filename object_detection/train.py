@@ -33,7 +33,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "021_IoU_loss"
+EXPERIMENT_NAME = "021_Ranger"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -136,15 +136,15 @@ if __name__ == "__main__":
             alpha=0.999,
             smoothing=0.1,
         ),
-        "size": None,  # RegressionLossWithMask(smooth=True),
-        "offset": None,  # RegressionLossWithMask(smooth=True),
-        "box": IoULossWithMask(CIoU=True),
+        "size": RegressionLossWithMask(smooth=True),
+        "offset": RegressionLossWithMask(smooth=True),
+        "box": None,  # IoULossWithMask(CIoU=True),
     }
     criterion_weights = {
         "cls": 10.0,
-        "size": None,  # 0.01,
-        "offset": None,  # 1.0,
-        "box": 1.0,
+        "size": 0.01,
+        "offset": 1.0,
+        "box": None,  # 1.0,
     }
 
     losses_computer = compute_losses
