@@ -33,7 +33,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "021_Ranger"
+EXPERIMENT_NAME = "022_image_960_batch_16"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -41,8 +41,8 @@ if __name__ == "__main__":
     workers = 4
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
-    image_size = 640
-    batch_size = 32
+    image_size = 960
+    batch_size = 16
     num_epochs = 500
     early_stopping = 100
     learning_rate = 0.01
@@ -182,6 +182,7 @@ if __name__ == "__main__":
         restart_interval=20,
         # restart_interval_multiplier=1.2,
     )
+    scheduler = None
 
     grad_init = {
         "gradinit_lr": 1e-3,
