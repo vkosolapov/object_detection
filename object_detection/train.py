@@ -43,6 +43,7 @@ if __name__ == "__main__":
     num_epochs = 500
     early_stopping = 100
     learning_rate = 0.01
+    mixed_precision = True
     checkpoint_file = None  # "checkpoints/checkpoint_139.pth",
 
     augmentations = A.Compose(
@@ -110,6 +111,7 @@ if __name__ == "__main__":
         layers=[2, 2, 2, 2],  # [3, 4, 6, 3],
         cardinality=32,
         base_width=4,
+        # block_args=dict(attn_layer="eca"),
         # block_args=dict(attn_layer="se", sk_kwargs=dict(split_input=True), scale=4), # SKNet
         block_args=dict(radix=2, avd=True, avd_first=False),  # ResNeSt
         stem_width=32,
@@ -213,6 +215,7 @@ if __name__ == "__main__":
         main_metric=main_metric,
         scheduler=scheduler,
         early_stopping=early_stopping,
+        mixed_precision=mixed_precision,
         checkpoint_file=checkpoint_file,
     )
 

@@ -1,7 +1,9 @@
+from contextlib import ExitStack
 import time
 from tqdm import tqdm
 import copy
 import torch
+from torch.cuda.amp import GradScaler, autocast
 import torchvision
 
 from torch.utils.tensorboard import SummaryWriter
@@ -29,6 +31,7 @@ class TrainLoop:
         main_metric,
         scheduler=None,
         early_stopping=None,
+        mixed_precision=False,
         checkpoint_file=None,
     ):
         self.experiment_name = experiment_name
@@ -67,6 +70,9 @@ class TrainLoop:
         self.main_metric = main_metric
         self.scheduler = scheduler
         self.early_stopping = early_stopping
+        self.mixed_precision = mixed_precision
+        if mixed_precision:
+            self.scaler = GradScaler()
         self.checkpoint_file = checkpoint_file
         self.draw_example = True
 
@@ -232,18 +238,26 @@ class TrainLoop:
             for j in range(len(self.targets)):
                 self.targets[j] = self.targets[j].to(self.device)
             with torch.set_grad_enabled(True):
-                self.pred = self.model(self.inputs)
-                self.losses_computer(
-                    self.pred, self.targets, self.criterion, self.losses
-                )
-                self.loss = 0
-                for key in self.criterion.keys():
-                    if self.criterion[key] is None:
-                        continue
-                    self.loss += self.losses[key] * self.criterion_weights[key]
-                self.optimizer.zero_grad()
-                self.loss.backward()
-                self.optimizer.step()
+                with ExitStack() as stack:
+                    if self.mixed_precision:
+                        stack.enter_context(autocast())
+                    self.pred = self.model(self.inputs)
+                    self.losses_computer(
+                        self.pred, self.targets, self.criterion, self.losses
+                    )
+                    self.loss = 0
+                    for key in self.criterion.keys():
+                        if self.criterion[key] is None:
+                            continue
+                        self.loss += self.losses[key] * self.criterion_weights[key]
+                    self.optimizer.zero_grad()
+                    if self.mixed_precision:
+                        self.scaler.scale(self.loss).backward()
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        self.loss.backward()
+                        self.optimizer.step()
             self.evaluate_minibatch("train")
             self.log_minibatch("train", epoch, i)
             self.log_norm("train", epoch, i)
@@ -276,15 +290,18 @@ class TrainLoop:
             for j in range(len(self.targets)):
                 self.targets[j] = self.targets[j].to(self.device)
             with torch.set_grad_enabled(False):
-                self.pred = self.model(self.inputs)
-                self.losses_computer(
-                    self.pred, self.targets, self.criterion, self.losses
-                )
-                self.loss = 0
-                for key in self.criterion.keys():
-                    if self.criterion[key] is None:
-                        continue
-                    self.loss += self.losses[key] * self.criterion_weights[key]
+                with ExitStack() as stack:
+                    if self.mixed_precision:
+                        stack.enter_context(autocast())
+                    self.pred = self.model(self.inputs)
+                    self.losses_computer(
+                        self.pred, self.targets, self.criterion, self.losses
+                    )
+                    self.loss = 0
+                    for key in self.criterion.keys():
+                        if self.criterion[key] is None:
+                            continue
+                        self.loss += self.losses[key] * self.criterion_weights[key]
             self.evaluate_minibatch("val")
             self.log_minibatch("val", epoch, i)
         self.evaluate_epoch("val")
