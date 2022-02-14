@@ -182,21 +182,6 @@ if __name__ == "__main__":
     # optimizer = SWA(optimizer, swa_start=10, swa_freq=5, swa_lr=0.05)
     # optimizer = SWA(optimizer)
 
-    grad_init = {
-        "gradinit_lr": 1e-3,
-        "gradinit_iters": 300,
-        "gradinit_alg": "adam",
-        "gradinit_eta": 0.1,
-        "gradinit_min_scale": 0.01,
-        "gradinit_grad_clip": 1,
-        "gradinit_gamma": float("inf"),
-        "gradinit_normalize_grad": False,
-        "gradinit_resume": "",
-        "gradinit_bsize": -1,
-        "batch_no_overlap": False,
-        "expname": "default",
-    }
-
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
         device=device,
