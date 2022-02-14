@@ -5,10 +5,11 @@ import copy
 import torch
 from torch.cuda.amp import GradScaler, autocast
 import torchvision
+from dataloader import DataLoader
+from scheduler import CyclicCosineDecayLR
+from torchcontrib.optim import SWA
 
 from torch.utils.tensorboard import SummaryWriter
-
-from dataloader import DataLoader
 
 
 class TrainLoop:
@@ -263,6 +264,14 @@ class TrainLoop:
             self.log_norm("train", epoch, i)
         if self.scheduler:
             self.scheduler.step()
+        if isinstance(self.optimizer, SWA):
+            if isinstance(self.scheduler, CyclicCosineDecayLR):
+                if self.scheduler._restart_flag == True:
+                    self.optimizer.update_swa()
+            self.optimizer.swap_swa_sgd()
+            self.optimizer.bn_update(
+                self.data_loaders["train"].data_loader, self.model, device=self.device
+            )
         self.evaluate_epoch("train")
         self.log_epoch("train", epoch)
         checkpoint = {

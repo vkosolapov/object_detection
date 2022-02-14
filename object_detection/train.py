@@ -168,8 +168,6 @@ if __name__ == "__main__":
     main_metric = "mAP@0.5:0.95"
 
     optimizer = Ranger(model.parameters(), lr=learning_rate, weight_decay=0.0001)
-    # swa = SWA(optimizer_conv, swa_start=10, swa_freq=5, swa_lr=0.05)
-    swa = SWA(optimizer)
     scheduler = CyclicCosineDecayLR(
         optimizer,
         warmup_epochs=10,
@@ -181,6 +179,8 @@ if __name__ == "__main__":
         restart_interval=20,
         restart_interval_multiplier=1.2,
     )
+    # optimizer = SWA(optimizer, swa_start=10, swa_freq=5, swa_lr=0.05)
+    # optimizer = SWA(optimizer)
 
     grad_init = {
         "gradinit_lr": 1e-3,
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         image_size=image_size,
         batch_size=batch_size,
         model=model,
-        optimizer=optimizer,  # swa,
+        optimizer=optimizer,
         num_epochs=num_epochs,
         criterion=criterion,
         criterion_weights=criterion_weights,
