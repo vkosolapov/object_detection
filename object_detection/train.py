@@ -39,7 +39,7 @@ if __name__ == "__main__":
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
     image_size = 640
-    batch_size = 16
+    batch_size = 32
     num_epochs = 500
     early_stopping = 100
     learning_rate = 0.01
@@ -138,10 +138,10 @@ if __name__ == "__main__":
         "box": IoULossWithMask(CIoU=True),
     }
     criterion_weights = {
-        "cls": 10.0,
+        "cls": 100.0,
         "size": None,  # 0.01,
         "offset": None,  # 1.0,
-        "box": 1.0,
+        "box": 0.01,
     }
 
     losses_computer = compute_losses

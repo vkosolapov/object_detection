@@ -107,18 +107,28 @@ class IoULossWithMask(nn.Module):
         expand_mask = torch.unsqueeze(mask, -1).repeat(1, 1, 1, 4)
         loss = bbox_iou(pred * expand_mask, target * expand_mask, CIoU=True)
         loss = loss.sum() / (expand_mask.sum() + 1e-4)
-        return loss + 1
+        return 1 - loss
 
 
 def bbox_iou(box1, box2, x1y1x2y2=False, GIoU=False, DIoU=False, CIoU=False, eps=1e-7):
     if x1y1x2y2:
-        b1_x1, b1_y1, b1_x2, b1_y2 = box1[0], box1[1], box1[2], box1[3]
-        b2_x1, b2_y1, b2_x2, b2_y2 = box2[0], box2[1], box2[2], box2[3]
+        b1_x1, b1_y1, b1_x2, b1_y2 = (
+            box1[..., 0],
+            box1[..., 1],
+            box1[..., 2],
+            box1[..., 3],
+        )
+        b2_x1, b2_y1, b2_x2, b2_y2 = (
+            box2[..., 0],
+            box2[..., 1],
+            box2[..., 2],
+            box2[..., 3],
+        )
     else:
-        b1_x1, b1_x2 = box1[0] - box1[2] / 2, box1[0] + box1[2] / 2
-        b1_y1, b1_y2 = box1[1] - box1[3] / 2, box1[1] + box1[3] / 2
-        b2_x1, b2_x2 = box2[0] - box2[2] / 2, box2[0] + box2[2] / 2
-        b2_y1, b2_y2 = box2[1] - box2[3] / 2, box2[1] + box2[3] / 2
+        b1_x1, b1_x2 = box1[..., 0] - box1[..., 2] / 2, box1[..., 0] + box1[..., 2] / 2
+        b1_y1, b1_y2 = box1[..., 1] - box1[..., 3] / 2, box1[..., 1] + box1[..., 3] / 2
+        b2_x1, b2_x2 = box2[..., 0] - box2[..., 2] / 2, box2[..., 0] + box2[..., 2] / 2
+        b2_y1, b2_y2 = box2[..., 1] - box2[..., 3] / 2, box2[..., 1] + box2[..., 3] / 2
 
     inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * (
         torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)
