@@ -107,7 +107,7 @@ class IoULossWithMask(nn.Module):
         expand_mask = torch.unsqueeze(mask, -1).repeat(1, 1, 1, 4)
         loss = bbox_iou(pred * expand_mask, target * expand_mask, CIoU=True)
         loss = loss.sum() / (expand_mask.sum() + 1e-4)
-        return -loss
+        return loss + 1
 
 
 def bbox_iou(box1, box2, x1y1x2y2=False, GIoU=False, DIoU=False, CIoU=False, eps=1e-7):

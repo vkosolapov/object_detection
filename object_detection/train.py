@@ -1,9 +1,7 @@
-from functools import partial
 import random
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision import transforms
 
 from torch.utils.tensorboard import SummaryWriter
 import wandb
@@ -11,9 +9,8 @@ import wandb
 from train_loop import TrainLoop
 import albumentations as A
 from albumentations.augmentations.transforms import CoarseDropout
-from dataloader import augment
 from timm import create_model
-from timm.models.resnet import _create_resnet
+from timm.models.resnet import _create_resnet, Bottleneck
 from timm.models.resnest import ResNestBottleneck
 from backbone import TIMMBackbone
 from model import Model
@@ -33,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "022_image_960_batch_16"
+EXPERIMENT_NAME = "023_Backbone_and_IoU_loss"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -41,7 +38,7 @@ if __name__ == "__main__":
     workers = 4
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
-    image_size = 960
+    image_size = 640
     batch_size = 16
     num_epochs = 500
     early_stopping = 100
@@ -122,7 +119,7 @@ if __name__ == "__main__":
     backbone_model = _create_resnet(
         "ecaresnet50d", num_classes=num_classes, pretrained=False, **backbone_args
     )
-    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
+    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=False)
     backbone_model = TIMMBackbone(backbone_model)
     head_model = CenterNet(backbone_model, num_classes)
     model = Model(backbone_model, head_model)
@@ -136,15 +133,15 @@ if __name__ == "__main__":
             alpha=0.999,
             smoothing=0.1,
         ),
-        "size": RegressionLossWithMask(smooth=True),
-        "offset": RegressionLossWithMask(smooth=True),
-        "box": None,  # IoULossWithMask(CIoU=True),
+        "size": None,  # RegressionLossWithMask(smooth=True),
+        "offset": None,  # RegressionLossWithMask(smooth=True),
+        "box": IoULossWithMask(CIoU=True),
     }
     criterion_weights = {
         "cls": 10.0,
-        "size": 0.01,
-        "offset": 1.0,
-        "box": None,  # 1.0,
+        "size": None,  # 0.01,
+        "offset": None,  # 1.0,
+        "box": 1.0,
     }
 
     losses_computer = compute_losses
@@ -180,9 +177,8 @@ if __name__ == "__main__":
         min_decay_lr=0.001,
         restart_lr=0.01,
         restart_interval=20,
-        # restart_interval_multiplier=1.2,
+        restart_interval_multiplier=1.2,
     )
-    scheduler = None
 
     grad_init = {
         "gradinit_lr": 1e-3,
