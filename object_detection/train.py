@@ -10,8 +10,9 @@ from train_loop import TrainLoop
 import albumentations as A
 from albumentations.augmentations.transforms import CoarseDropout
 from timm import create_model
-from timm.models.resnet import _create_resnet, Bottleneck
+from timm.models.resnet import _create_resnet, Bottleneck, BasicBlock
 from timm.models.resnest import ResNestBottleneck
+from norm import CBatchNorm2d
 from backbone import TIMMBackbone
 from model import Model
 from loss import LabelSmoothingFocalLoss, RegressionLossWithMask, IoULossWithMask
@@ -30,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "023_Backbone_and_IoU_loss"
+EXPERIMENT_NAME = "024_Cross_iteration_BN_and_SWA"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
     image_size = 640
-    batch_size = 32
+    batch_size = 8
     num_epochs = 500
     early_stopping = 100
     learning_rate = 0.01
@@ -106,24 +107,27 @@ if __name__ == "__main__":
     }
 
     backbone_args = dict(
-        block=ResNestBottleneck,
-        act_layer=nn.Mish,
         layers=[2, 2, 2, 2],  # [3, 4, 6, 3],
-        cardinality=32,
-        base_width=4,
-        # block_args=dict(attn_layer="eca"),
+        block=Bottleneck,  # ResNestBottleneck,
+        block_args=dict(attn_layer="eca"),
         # block_args=dict(attn_layer="se", sk_kwargs=dict(split_input=True), scale=4), # SKNet
-        block_args=dict(radix=2, avd=True, avd_first=False),  # ResNeSt
+        # block_args=dict(radix=2, avd=True, avd_first=False),  # ResNeSt
+        act_layer=nn.Mish,
+        norm_layer=CBatchNorm2d,
+        base_width=4,
+        cardinality=16,
         stem_width=32,
         stem_type="deep",
         avg_down=True,
     )
     backbone_model = _create_resnet(
-        "ecaresnet50d", num_classes=num_classes, pretrained=False, **backbone_args
+        "resnet18", num_classes=num_classes, pretrained=False, **backbone_args
     )
-    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=False)
+    # backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=False)
     backbone_model = TIMMBackbone(backbone_model)
-    head_model = CenterNet(backbone_model, num_classes)
+    head_model = CenterNet(
+        num_classes, backbone_model, act_layer=nn.Mish, norm_layer=CBatchNorm2d
+    )
     model = Model(backbone_model, head_model)
     model = model.to(device)
 
@@ -180,7 +184,7 @@ if __name__ == "__main__":
         restart_interval_multiplier=1.2,
     )
     # optimizer = SWA(optimizer, swa_start=10, swa_freq=5, swa_lr=0.05)
-    # optimizer = SWA(optimizer)
+    optimizer = SWA(optimizer)
 
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
@@ -205,4 +209,3 @@ if __name__ == "__main__":
     )
 
     loop.train_model()
-

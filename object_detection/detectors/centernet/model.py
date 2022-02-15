@@ -2,7 +2,9 @@ import torch.nn as nn
 
 
 class CenterNet(nn.Module):
-    def __init__(self, backbone, num_classes):
+    def __init__(
+        self, num_classes, backbone, act_layer=nn.ReLU, norm_layer=nn.BatchNorm2d
+    ):
         super().__init__()
         channels = 0
         modules = list(backbone.modules())
@@ -12,6 +14,8 @@ class CenterNet(nn.Module):
                 channels = module.out_channels
                 break
         self.channels = channels
+        self.act_layer = act_layer
+        self.norm_layer = norm_layer
 
         self.decoder = self._make_decoder(
             num_layers=3, channels_list=[256, 128, 64], kernels_list=[4, 4, 4],
@@ -39,8 +43,8 @@ class CenterNet(nn.Module):
                     bias=False,
                 )
             )
-            layers.append(nn.BatchNorm2d(channels))
-            layers.append(nn.ReLU(inplace=True))
+            layers.append(self.norm_layer(channels))
+            layers.append(self.act_layer(inplace=True))
             self.channels = channels
         return nn.Sequential(*layers)
 
@@ -49,8 +53,8 @@ class CenterNet(nn.Module):
             nn.Conv2d(
                 input_channels, input_channels, kernel_size=3, padding=1, bias=False
             ),
-            nn.BatchNorm2d(input_channels),
-            nn.ReLU(inplace=True),
+            self.norm_layer(input_channels),
+            self.act_layer(inplace=True),
             nn.Conv2d(
                 input_channels, output_channels, kernel_size=1, stride=1, padding=0
             ),
@@ -62,7 +66,7 @@ class CenterNet(nn.Module):
                 nn.init.kaiming_normal_(module.weight, nonlinearity="relu")
             elif isinstance(module, nn.ConvTranspose2d):
                 nn.init.kaiming_normal_(module.weight, nonlinearity="relu")
-            elif isinstance(module, nn.BatchNorm2d):
+            elif isinstance(module, self.norm_layer):
                 nn.init.constant_(module.weight, 1)
                 nn.init.constant_(module.bias, 0)
 
