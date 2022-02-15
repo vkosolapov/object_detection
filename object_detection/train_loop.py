@@ -269,14 +269,13 @@ class TrainLoop:
             self.log_norm("train", epoch, i)
         if self.scheduler:
             self.scheduler.step()
-        if self.swa:
-            if (
-                not isinstance(self.scheduler, CyclicCosineDecayLR)
-                or self.scheduler._restart_flag == True
-            ):
-                self.swa_model.update_parameters(self.model)
-                self.swa_scheduler.step()
-                update_bn(self.data_loaders["train"].data_loader, self.swa_model)
+        if self.swa and (
+            not isinstance(self.scheduler, CyclicCosineDecayLR)
+            or self.scheduler._restart_flag == True
+        ):
+            self.swa_model.update_parameters(self.model)
+            self.swa_scheduler.step()
+            update_bn(self.data_loaders["train"].data_loader, self.swa_model)
         self.evaluate_epoch("train")
         self.log_epoch("train", epoch)
         checkpoint = {
@@ -307,7 +306,13 @@ class TrainLoop:
                 for j in range(len(self.targets)):
                     self.targets[j] = self.targets[j].to(self.device)
                 with torch.set_grad_enabled(False):
-                    self.pred = self.swa_model(self.inputs)
+                    if self.swa and (
+                        not isinstance(self.scheduler, CyclicCosineDecayLR)
+                        or self.scheduler._restart_flag == True
+                    ):
+                        self.pred = self.swa_model(self.inputs)
+                    else:
+                        self.pred = self.model(self.inputs)
                     self.losses_computer(
                         self.pred, self.targets, self.criterion, self.losses
                     )
