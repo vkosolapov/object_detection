@@ -7,7 +7,7 @@ from torch.cuda.amp import GradScaler, autocast
 import torchvision
 from dataloader import DataLoader
 from scheduler import CyclicCosineDecayLR
-from torchcontrib.optim import SWA
+from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -31,6 +31,7 @@ class TrainLoop:
         metrics,
         main_metric,
         scheduler=None,
+        swa=False,
         early_stopping=None,
         mixed_precision=False,
         checkpoint_file=None,
@@ -70,10 +71,14 @@ class TrainLoop:
         self.metrics_values = {}
         self.main_metric = main_metric
         self.scheduler = scheduler
+        self.swa = swa
+        if swa:
+            self.swa_model = AveragedModel(model)
         self.early_stopping = early_stopping
         self.mixed_precision = mixed_precision
         if mixed_precision:
             self.scaler = GradScaler()
+            self.swa_scheduler = SWALR(optimizer, swa_lr=0.05)
         self.checkpoint_file = checkpoint_file
         self.draw_example = True
 
@@ -264,14 +269,14 @@ class TrainLoop:
             self.log_norm("train", epoch, i)
         if self.scheduler:
             self.scheduler.step()
-        if isinstance(self.optimizer, SWA):
-            if isinstance(self.scheduler, CyclicCosineDecayLR):
-                if self.scheduler._restart_flag == True:
-                    self.optimizer.update_swa()
-            self.optimizer.swap_swa_sgd()
-            self.optimizer.bn_update(
-                self.data_loaders["train"].data_loader, self.model, device=self.device
-            )
+        if self.swa:
+            if (
+                not isinstance(self.scheduler, CyclicCosineDecayLR)
+                or self.scheduler._restart_flag == True
+            ):
+                self.swa_model.update_parameters(self.model)
+                self.swa_scheduler.step()
+                update_bn(self.data_loaders["train"].data_loader, self.swa_model)
         self.evaluate_epoch("train")
         self.log_epoch("train", epoch)
         checkpoint = {
@@ -302,7 +307,7 @@ class TrainLoop:
                 for j in range(len(self.targets)):
                     self.targets[j] = self.targets[j].to(self.device)
                 with torch.set_grad_enabled(False):
-                    self.pred = self.model(self.inputs)
+                    self.pred = self.swa_model(self.inputs)
                     self.losses_computer(
                         self.pred, self.targets, self.criterion, self.losses
                     )

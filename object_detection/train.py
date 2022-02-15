@@ -19,7 +19,6 @@ from loss import LabelSmoothingFocalLoss, RegressionLossWithMask, IoULossWithMas
 import torch.optim as optim
 from optimizer import Ranger
 from scheduler import CyclicCosineDecayLR
-from torchcontrib.optim import SWA
 from torchmetrics.detection.map import MeanAveragePrecision
 
 from detectors.centernet.dataset import CenternetDataset, postprocess_predictions
@@ -31,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "024_CrossIterBN_DropBlock_DropPath"
+EXPERIMENT_NAME = "025_Soft_regularization"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -114,8 +113,8 @@ if __name__ == "__main__":
         # block_args=dict(radix=2, avd=True, avd_first=False),  # ResNeSt
         act_layer=nn.Mish,
         norm_layer=CBatchNorm2d,
-        drop_block_rate=0.1,
-        drop_path_rate=0.1,
+        drop_block_rate=0.001,
+        drop_path_rate=0.001,
         base_width=4,
         cardinality=16,
         stem_width=32,
@@ -176,17 +175,16 @@ if __name__ == "__main__":
     optimizer = Ranger(model.parameters(), lr=learning_rate, weight_decay=0.0001)
     scheduler = CyclicCosineDecayLR(
         optimizer,
-        warmup_epochs=10,
+        warmup_epochs=25,
         warmup_start_lr=0.005,
         warmup_linear=False,
-        init_decay_epochs=10,
+        init_decay_epochs=25,
         min_decay_lr=0.001,
         restart_lr=0.01,
-        restart_interval=20,
+        restart_interval=50,
         restart_interval_multiplier=1.2,
     )
-    # optimizer = SWA(optimizer, swa_start=10, swa_freq=5, swa_lr=0.05)
-    optimizer = SWA(optimizer)
+    swa = True
 
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
@@ -205,6 +203,7 @@ if __name__ == "__main__":
         metrics=metrics,
         main_metric=main_metric,
         scheduler=scheduler,
+        swa=swa,
         early_stopping=early_stopping,
         mixed_precision=mixed_precision,
         checkpoint_file=checkpoint_file,
