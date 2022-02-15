@@ -18,14 +18,14 @@ class CenterNet(nn.Module):
         self.norm_layer = norm_layer
 
         self.decoder = self._make_decoder(
-            num_layers=3, channels_list=[256, 128, 64], kernels_list=[4, 4, 4],
+            num_layers=3, channels_list=[128, 64, 32], kernels_list=[4, 4, 4],
         )
 
         self.classification_head = self._make_head(
-            input_channels=64, output_channels=num_classes
+            input_channels=32, output_channels=num_classes
         )
-        self.size_head = self._make_head(input_channels=64, output_channels=2)
-        self.offset_head = self._make_head(input_channels=64, output_channels=2)
+        self.size_head = self._make_head(input_channels=32, output_channels=2)
+        self.offset_head = self._make_head(input_channels=32, output_channels=2)
 
     def _make_decoder(self, num_layers, channels_list, kernels_list):
         layers = []

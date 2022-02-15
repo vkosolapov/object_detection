@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "024_Cross_iteration_BN_and_SWA"
+EXPERIMENT_NAME = "024_CrossIterBN_DropBlock_DropPath"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -114,6 +114,8 @@ if __name__ == "__main__":
         # block_args=dict(radix=2, avd=True, avd_first=False),  # ResNeSt
         act_layer=nn.Mish,
         norm_layer=CBatchNorm2d,
+        drop_block_rate=0.1,
+        drop_path_rate=0.1,
         base_width=4,
         cardinality=16,
         stem_width=32,

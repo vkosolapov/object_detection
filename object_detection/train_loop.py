@@ -231,17 +231,17 @@ class TrainLoop:
                 continue
             self.running_losses[key] = 0.0
         for (i, batch) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
-            self.original_inputs = batch[0].to(self.device)
-            self.inputs = batch[1].to(self.device)
-            self.labels_count = batch[2]
-            self.labels = batch[3].to(self.device)
-            self.targets = batch[4:]
-            for j in range(len(self.targets)):
-                self.targets[j] = self.targets[j].to(self.device)
-            with torch.set_grad_enabled(True):
-                with ExitStack() as stack:
-                    if self.mixed_precision:
-                        stack.enter_context(autocast())
+            with ExitStack() as stack:
+                if self.mixed_precision:
+                    stack.enter_context(autocast())
+                self.original_inputs = batch[0]  # .to(self.device)
+                self.inputs = batch[1].to(self.device)
+                self.labels_count = batch[2]
+                self.labels = batch[3]  # .to(self.device)
+                self.targets = batch[4:]
+                for j in range(len(self.targets)):
+                    self.targets[j] = self.targets[j].to(self.device)
+                with torch.set_grad_enabled(True):
                     self.pred = self.model(self.inputs)
                     self.losses_computer(
                         self.pred, self.targets, self.criterion, self.losses
@@ -291,17 +291,17 @@ class TrainLoop:
                 continue
             self.running_losses[key] = 0.0
         for (i, batch) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
-            self.original_inputs = batch[0].to(self.device)
-            self.inputs = batch[1].to(self.device)
-            self.labels_count = batch[2]
-            self.labels = batch[3].to(self.device)
-            self.targets = batch[4:]
-            for j in range(len(self.targets)):
-                self.targets[j] = self.targets[j].to(self.device)
-            with torch.set_grad_enabled(False):
-                with ExitStack() as stack:
-                    if self.mixed_precision:
-                        stack.enter_context(autocast())
+            with ExitStack() as stack:
+                if self.mixed_precision:
+                    stack.enter_context(autocast())
+                self.original_inputs = batch[0]  # .to(self.device)
+                self.inputs = batch[1].to(self.device)
+                self.labels_count = batch[2]
+                self.labels = batch[3]  # .to(self.device)
+                self.targets = batch[4:]
+                for j in range(len(self.targets)):
+                    self.targets[j] = self.targets[j].to(self.device)
+                with torch.set_grad_enabled(False):
                     self.pred = self.model(self.inputs)
                     self.losses_computer(
                         self.pred, self.targets, self.criterion, self.losses
