@@ -68,11 +68,18 @@ class CenternetDataset(YOLODataset):
         num_classes,
         input_shape,
         augmentations=None,
+        mixup_prob=0.0,
         mosaic4prob=0.0,
         mosaic9prob=0.0,
     ):
         super(CenternetDataset, self).__init__(
-            data_path, phase, input_shape, augmentations, mosaic4prob, mosaic9prob
+            data_path,
+            phase,
+            input_shape,
+            augmentations,
+            mixup_prob,
+            mosaic4prob,
+            mosaic9prob,
         )
         stride = 4
         self.output_shape = (

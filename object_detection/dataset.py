@@ -46,6 +46,7 @@ class YOLODataset(Dataset):
         phase,
         input_shape,
         augmentations=None,
+        mixup_prob=0.0,
         mosaic4prob=0.0,
         mosaic9prob=0.0,
     ):
@@ -58,6 +59,7 @@ class YOLODataset(Dataset):
         self.length = len(self.annotation_lines)
         self.input_shape = (input_shape, input_shape)
         self.augmentations = augmentations
+        self.mixup_prob = mixup_prob
         self.mosaic4prob = mosaic4prob
         self.mosaic9prob = mosaic9prob
 
@@ -67,7 +69,9 @@ class YOLODataset(Dataset):
     def __getitem__(self, index):
         index = index % self.length
 
-        if random.random() < self.mosaic4prob:
+        if random.random() < self.mixup_prob:
+            image, labels = self.load_mixup(index)
+        elif random.random() < self.mosaic4prob:
             image, labels = self.load_mosaic_4(index)
         elif random.random() < self.mosaic9prob:
             image, labels = self.load_mosaic_9(index)
@@ -143,6 +147,18 @@ class YOLODataset(Dataset):
 
         return np.asarray(image), labels
 
+    def load_mixup(self, index):
+        index2 = random.randint(0, self.length)
+        im, labels = self.load_image(index)
+        im2, labels2 = self.load_image(index2)
+        r = np.random.beta(32.0, 32.0)
+        im = (im * r + im2 * (1 - r)).astype(np.uint8)
+        if len(labels.shape) == 2 and len(labels2.shape) == 2:
+            labels = np.concatenate((labels, labels2), 0)
+        elif len(labels.shape) < 2:
+            labels = labels2
+        return im, labels
+
     def load_mosaic_4(self, index):
         labels4 = []
         s = min(self.input_shape[0], self.input_shape[1])
@@ -173,13 +189,16 @@ class YOLODataset(Dataset):
                 labels[:, [0, 2]] += padw
                 labels[:, [1, 3]] += padh
                 labels4.append(labels)
-        labels4 = np.concatenate(labels4, 0)
-        labels4[:, [0, 2]] //= 2
-        labels4[:, [1, 3]] //= 2
-        clip_coords(labels4, self.input_shape)
-        box_w = labels4[:, 2] - labels4[:, 0]
-        box_h = labels4[:, 3] - labels4[:, 1]
-        labels4 = labels4[np.logical_and(box_w > 1, box_h > 1)]
+        if len(labels4) > 0:
+            labels4 = np.concatenate(labels4, 0)
+            labels4[:, [0, 2]] //= 2
+            labels4[:, [1, 3]] //= 2
+            clip_coords(labels4, self.input_shape)
+            box_w = labels4[:, 2] - labels4[:, 0]
+            box_h = labels4[:, 3] - labels4[:, 1]
+            labels4 = labels4[np.logical_and(box_w > 1, box_h > 1)]
+        else:
+            labels4 = np.array(labels4, dtype=np.int32)
         img4 = Image.fromarray(img4)
         img4 = img4.resize((self.input_shape[0], self.input_shape[1]), Image.LANCZOS)
         img4 = np.asarray(img4)
@@ -224,15 +243,18 @@ class YOLODataset(Dataset):
             img9[y1:y2, x1:x2, :] = img[x1 - padw :, y1 - padh :, :]
             wp, hp = w, h
         img9 = img9[xc : xc + 2 * s, yc : yc + 2 * s]
-        labels9 = np.concatenate(labels9, 0)
-        labels9[:, [0, 2]] -= xc
-        labels9[:, [1, 3]] -= yc
-        labels9[:, [0, 2]] //= 3
-        labels9[:, [1, 3]] //= 3
-        clip_coords(labels9, self.input_shape)
-        box_w = labels9[:, 2] - labels9[:, 0]
-        box_h = labels9[:, 3] - labels9[:, 1]
-        labels9 = labels9[np.logical_and(box_w > 1, box_h > 1)]
+        if len(labels9) > 0:
+            labels9 = np.concatenate(labels9, 0)
+            labels9[:, [0, 2]] -= xc
+            labels9[:, [1, 3]] -= yc
+            labels9[:, [0, 2]] //= 3
+            labels9[:, [1, 3]] //= 3
+            clip_coords(labels9, self.input_shape)
+            box_w = labels9[:, 2] - labels9[:, 0]
+            box_h = labels9[:, 3] - labels9[:, 1]
+            labels9 = labels9[np.logical_and(box_w > 1, box_h > 1)]
+        else:
+            labels9 = np.array(labels9, dtype=np.int32)
         img9 = Image.fromarray(img9)
         img9 = img9.resize((self.input_shape[0], self.input_shape[1]), Image.LANCZOS)
         img9 = np.asarray(img9)
