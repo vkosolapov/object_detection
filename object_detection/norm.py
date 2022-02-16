@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 
-class CBatchNorm2d(nn.Module):
+class CBatchNorm2d(nn.BatchNorm2d):
     def __init__(
         self,
         num_features,
