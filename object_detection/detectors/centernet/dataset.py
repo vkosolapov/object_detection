@@ -1,9 +1,7 @@
 import math
 import numpy as np
-from PIL import Image
 import torch
 import torch.nn.functional as F
-import torchvision
 from torchvision.ops import nms
 from dataset import YOLODataset
 
@@ -63,9 +61,18 @@ def draw_gaussian(heatmap, center, radius, k=1):
 
 
 class CenternetDataset(YOLODataset):
-    def __init__(self, data_path, phase, num_classes, input_shape, augmentations=None):
+    def __init__(
+        self,
+        data_path,
+        phase,
+        num_classes,
+        input_shape,
+        augmentations=None,
+        mosaic4prob=0.0,
+        mosaic9prob=0.0,
+    ):
         super(CenternetDataset, self).__init__(
-            data_path, phase, input_shape, augmentations
+            data_path, phase, input_shape, augmentations, mosaic4prob, mosaic9prob
         )
         stride = 4
         self.output_shape = (
@@ -197,8 +204,6 @@ def decode_bbox(pred_cls, pred_size, pred_offset, confidence, device):
 
 
 def centernet_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image):
-    # box_yx = box_xy[..., ::-1]
-    # box_hw = box_wh[..., ::-1]
     input_shape = np.array(input_shape)
     image_shape = np.array(image_shape)
 

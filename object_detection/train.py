@@ -30,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "026_Without_drop_CBN_SWA"
+EXPERIMENT_NAME = "027_Mosaic_aug"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -100,7 +100,13 @@ if __name__ == "__main__":
 
     datasets = {
         "train": CenternetDataset(
-            datadir, "train", num_classes, image_size, augmentations
+            datadir,
+            "train",
+            num_classes,
+            image_size,
+            augmentations,
+            mosaic4prob=0.1,
+            mosaic9prob=0.05,
         ),
         "val": CenternetDataset(datadir, "val", num_classes, image_size),
     }
