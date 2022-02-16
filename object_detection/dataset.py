@@ -45,9 +45,14 @@ class YOLODataset(Dataset):
     def __getitem__(self, index):
         index = index % self.length
 
-        image, labels = self.get_data(self.annotation_lines[index], self.input_shape)
-        original_image = image.copy()
+        image, labels = self.get_data(index, self.input_shape)
 
+        if self.phase == "train":
+            image, labels = augment(image, labels, self.augmentations)
+            labels = np.array(labels, dtype=np.int32)
+        else:
+            image = np.array(image, np.float32)
+        original_image = image.copy()
         image = preprocess_input(image)
 
         if len(labels.shape) < 2:
@@ -66,8 +71,10 @@ class YOLODataset(Dataset):
             labels,
         )
 
-    def get_data(self, annotation_line, input_shape):
+    def get_data(self, index, input_shape):
+        annotation_line = self.annotation_lines[index]
         image = Image.open(annotation_line.strip("\n"))
+        image = cvtColor(image)
         image = image.resize((self.input_shape[0], self.input_shape[1]), Image.LANCZOS)
 
         iw, ih = image.size
@@ -107,14 +114,4 @@ class YOLODataset(Dataset):
             box_h = labels[:, 3] - labels[:, 1]
             labels = labels[np.logical_and(box_w > 1, box_h > 1)]
 
-        image = cvtColor(image)
-        image = image.resize((nw, nh), Image.BICUBIC)
-        new_image = Image.new("RGB", (w, h), (128, 128, 128))
-        new_image.paste(image, (dx, dy))
-        if self.phase == "train":
-            image_data, labels = augment(new_image, labels, self.augmentations)
-            labels = np.array(labels, dtype=np.int32)
-        else:
-            image_data = np.array(new_image, np.float32)
-
-        return image_data, labels
+        return image, labels

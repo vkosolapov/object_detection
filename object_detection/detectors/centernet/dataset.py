@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 import torchvision
 from torchvision.ops import nms
-from datasets.yolo import YOLODataset
+from dataset import YOLODataset
 
 
 def gaussian_radius(det_size, min_overlap=0.7):
