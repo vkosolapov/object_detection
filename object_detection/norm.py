@@ -21,7 +21,7 @@ class CBatchNorm2d(nn.BatchNorm2d):
         frozen=False,
         out_p=False,
     ):
-        super(CBatchNorm2d, self).__init__()
+        super(CBatchNorm2d, self).__init__(num_features)
         self.num_features = num_features
         self.eps = eps
         self.momentum = momentum

@@ -30,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "025_Soft_regularization"
+EXPERIMENT_NAME = "026_Without_drop_CBN_SWA"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
     image_size = 640
-    batch_size = 8
+    batch_size = 32
     num_epochs = 500
     early_stopping = 100
     learning_rate = 0.01
@@ -124,10 +124,13 @@ if __name__ == "__main__":
     backbone_model = _create_resnet(
         "resnet18", num_classes=num_classes, pretrained=False, **backbone_args
     )
-    # backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=False)
+    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
     backbone_model = TIMMBackbone(backbone_model)
     head_model = CenterNet(
-        num_classes, backbone_model, act_layer=nn.Mish, norm_layer=CBatchNorm2d
+        num_classes,
+        backbone_model,
+        # act_layer=nn.Mish,
+        # norm_layer=CBatchNorm2d,
     )
     model = Model(backbone_model, head_model)
     model = model.to(device)
@@ -138,7 +141,7 @@ if __name__ == "__main__":
             one_hot_label_format=True,
             gamma=2.0,
             alpha=0.999,
-            smoothing=0.1,
+            smoothing=0.0,
         ),
         "size": None,  # RegressionLossWithMask(smooth=True),
         "offset": None,  # RegressionLossWithMask(smooth=True),
@@ -184,7 +187,8 @@ if __name__ == "__main__":
         restart_interval=50,
         restart_interval_multiplier=1.2,
     )
-    swa = True
+    scheduler = None
+    swa = False
 
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
