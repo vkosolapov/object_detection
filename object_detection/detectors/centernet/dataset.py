@@ -5,8 +5,7 @@ import torch
 import torch.nn.functional as F
 import torchvision
 from torchvision.ops import nms
-from torch.utils.data import Dataset
-from dataloader import augment
+from datasets.yolo import YOLODataset
 
 
 def gaussian_radius(det_size, min_overlap=0.7):
@@ -63,48 +62,25 @@ def draw_gaussian(heatmap, center, radius, k=1):
     return heatmap
 
 
-def preprocess_input(image):
-    image = np.array(image, dtype=np.float32)[:, :, ::-1]
-    mean = [0.40789655, 0.44719303, 0.47026116]
-    std = [0.2886383, 0.27408165, 0.27809834]
-    image = (image / 255.0 - mean) / std
-    return torch.Tensor(image).type(dtype=torch.float32).permute(2, 0, 1)
-
-
-def cvtColor(image):
-    if len(np.shape(image)) == 3 and np.shape(image)[2] == 3:
-        return image
-    else:
-        image = image.convert("RGB")
-        return image
-
-
-class CenternetDataset(Dataset):
+class CenternetDataset(YOLODataset):
     def __init__(self, data_path, phase, num_classes, input_shape, augmentations=None):
-        super(CenternetDataset, self).__init__()
-        self.phase = phase
-        suffix = "/train.txt" if phase == "train" else "/validation.txt"
-        self.data_path = data_path + suffix
-        with open(self.data_path) as file:
-            self.annotation_lines = file.readlines()
-        self.length = len(self.annotation_lines)
-        self.input_shape = (input_shape, input_shape)
+        super(CenternetDataset, self).__init__(
+            data_path, phase, input_shape, augmentations
+        )
         stride = 4
         self.output_shape = (
             int(self.input_shape[0] / stride),
             int(self.input_shape[1] / stride),
         )
         self.num_classes = num_classes
-        self.augmentations = augmentations
-
-    def __len__(self):
-        return self.length
 
     def __getitem__(self, index):
         index = index % self.length
 
-        image, labels = self.get_data(self.annotation_lines[index], self.input_shape)
-        original_image = image.copy()
+        original_image, image, labels_count, labels = super(
+            CenternetDataset, self
+        ).__getitem__(index)
+
         target_cls = np.zeros(
             (self.output_shape[0], self.output_shape[1], self.num_classes),
             dtype=np.float32,
@@ -132,7 +108,7 @@ class CenternetDataset(Dataset):
                 self.output_shape[1] - 1,
             )
 
-        for i in range(len(labels)):
+        for i in range(labels_count):
             box = boxes[i].copy()
             cls_id = int(labels[i, -1])
 
@@ -154,17 +130,6 @@ class CenternetDataset(Dataset):
         target_size = np.transpose(target_size, (2, 0, 1))
         target_offset = np.transpose(target_offset, (2, 0, 1))
 
-        image = preprocess_input(image)
-
-        if len(labels.shape) < 2:
-            labels = np.expand_dims(labels, axis=1)
-        labels_count = labels.shape[0]
-        labels = F.pad(
-            torch.Tensor(labels),
-            (0, 5 - labels.shape[1], 0, 100 - labels.shape[0]),
-            "constant",
-            0.0,
-        )
         return (
             original_image,
             image,
@@ -175,59 +140,6 @@ class CenternetDataset(Dataset):
             target_offset,
             target_regression_mask,
         )
-
-    def get_data(self, annotation_line, input_shape):
-        image = Image.open(annotation_line.strip("\n"))
-        image = image.resize((self.input_shape[0], self.input_shape[1]), Image.LANCZOS)
-
-        iw, ih = image.size
-        w, h = input_shape
-        scale = min(w / iw, h / ih)
-        nw = int(iw * scale)
-        nh = int(ih * scale)
-        dx = (w - nw) // 2
-        dy = (h - nh) // 2
-
-        with open(
-            annotation_line.replace("images", "labels")
-            .replace("jpg", "txt")
-            .strip("\n")
-        ) as file:
-            labels = file.readlines()
-        labels_items = []
-        for label in labels:
-            label_items = label.strip("\n").split(" ")
-            label_items.append(label_items.pop(0))
-            label_items[0] = int(float(label_items[0]) * iw)
-            label_items[1] = int(float(label_items[1]) * ih)
-            label_items[2] = int(float(label_items[2]) * iw)
-            label_items[2] += label_items[0]
-            label_items[3] = int(float(label_items[3]) * ih)
-            label_items[3] += label_items[1]
-            labels_items.append(label_items)
-        labels = np.array(labels_items, dtype=np.int32)
-
-        if len(labels) > 0:
-            labels[:, [0, 2]] = labels[:, [0, 2]] * nw / iw + dx
-            labels[:, [1, 3]] = labels[:, [1, 3]] * nh / ih + dy
-            labels[:, 0:2][labels[:, 0:2] < 0] = 0
-            labels[:, 2][labels[:, 2] > w] = w
-            labels[:, 3][labels[:, 3] > h] = h
-            box_w = labels[:, 2] - labels[:, 0]
-            box_h = labels[:, 3] - labels[:, 1]
-            labels = labels[np.logical_and(box_w > 1, box_h > 1)]
-
-        image = cvtColor(image)
-        image = image.resize((nw, nh), Image.BICUBIC)
-        new_image = Image.new("RGB", (w, h), (128, 128, 128))
-        new_image.paste(image, (dx, dy))
-        if self.phase == "train":
-            image_data, labels = augment(new_image, labels, self.augmentations)
-            labels = np.array(labels, dtype=np.int32)
-        else:
-            image_data = np.array(new_image, np.float32)
-
-        return image_data, labels
 
 
 def pool_nms(heat, kernel=3):

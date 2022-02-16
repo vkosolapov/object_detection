@@ -2,12 +2,6 @@ import numpy as np
 import torch
 
 
-def augment(image, bboxes, augmentation_pipeline):
-    image = np.asarray(image)
-    result = augmentation_pipeline(image=image, bboxes=bboxes)
-    return result["image"], result["bboxes"]
-
-
 class DataLoader:
     def __init__(self, dataset, phase, batch_size, workers, device):
         data_loader = torch.utils.data.DataLoader(
