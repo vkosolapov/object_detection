@@ -40,7 +40,7 @@ class CBatchNorm2d(nn.BatchNorm2d):
         self.pre_dmudw = []
         self.pre_dmeanx2dw = []
         self.pre_weight = []
-        self.ones = torch.ones(self.num_features).cuda()
+        self.ones = torch.ones(self.num_features)  # .cuda()
         if self.affine:
             self.weight = Parameter(torch.Tensor(num_features))
             self.bias = Parameter(torch.Tensor(num_features))
@@ -79,6 +79,11 @@ class CBatchNorm2d(nn.BatchNorm2d):
             )
 
     def forward(self, input):
+        if input.is_cuda:
+            device = input.get_device()
+            self.ones = self.ones.to(device)
+        else:
+            self.ones = self.ones.cpu()
         self._check_input_dim(input)
         y = input.transpose(0, 1)
         return_shape = y.shape

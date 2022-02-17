@@ -35,7 +35,7 @@ wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_N
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    workers = 4
+    workers = 8
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
     image_size = 640
@@ -112,7 +112,7 @@ if __name__ == "__main__":
             mosaic4prob=0.1,
             mosaic9prob=0.05,
         ),
-        "val": CenternetDataset(datadir, "val", num_classes, image_size,),
+        "val": CenternetDataset(datadir, "val", num_classes, image_size),
     }
 
     backbone_args = dict(
