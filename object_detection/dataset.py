@@ -39,6 +39,36 @@ def augment(image, bboxes, augmentation_pipeline):
     return result["image"], result["bboxes"]
 
 
+def bbox_ioa(box1, box2, eps=1e-7):
+    box2 = box2.transpose()
+    b1_x1, b1_y1, b1_x2, b1_y2 = box1[0], box1[1], box1[2], box1[3]
+    b2_x1, b2_y1, b2_x2, b2_y2 = box2[0], box2[1], box2[2], box2[3]
+    inter_area = (np.minimum(b1_x2, b2_x2) - np.maximum(b1_x1, b2_x1)).clip(0) * (
+        np.minimum(b1_y2, b2_y2) - np.maximum(b1_y1, b2_y1)
+    ).clip(0)
+    box2_area = (b2_x2 - b2_x1) * (b2_y2 - b2_y1) + eps
+    return inter_area / box2_area
+
+
+def cutout(im, labels, p=0.5):
+    if random.random() < p:
+        w, h = im.shape[:2]
+        scales = [0.5] * 1 + [0.25] * 2 + [0.125] * 4 + [0.0625] * 8 + [0.03125] * 16
+        for s in scales:
+            mask_w = random.randint(1, int(w * s))
+            mask_h = random.randint(1, int(h * s))
+            xmin = max(0, random.randint(0, w) - mask_w // 2)
+            ymin = max(0, random.randint(0, h) - mask_h // 2)
+            xmax = min(w, xmin + mask_w)
+            ymax = min(h, ymin + mask_h)
+            im[xmin:xmax, ymin:ymax] = [random.randint(64, 191) for _ in range(3)]
+            if len(labels) and s > 0.03:
+                box = np.array([xmin, ymin, xmax, ymax], dtype=np.float32)
+                ioa = bbox_ioa(box, labels[:, 1:5])
+                labels = labels[ioa < 0.60]
+    return im, labels
+
+
 class YOLODataset(Dataset):
     def __init__(
         self,
@@ -46,7 +76,9 @@ class YOLODataset(Dataset):
         phase,
         input_shape,
         augmentations=None,
+        cutout_prob=0.0,
         mixup_prob=0.0,
+        cutmix_prob=0.0,
         mosaic4prob=0.0,
         mosaic9prob=0.0,
     ):
@@ -59,7 +91,9 @@ class YOLODataset(Dataset):
         self.length = len(self.annotation_lines)
         self.input_shape = (input_shape, input_shape)
         self.augmentations = augmentations
+        self.cutout_prob = cutout_prob
         self.mixup_prob = mixup_prob
+        self.cutmix_prob = cutmix_prob
         self.mosaic4prob = mosaic4prob
         self.mosaic9prob = mosaic9prob
 
@@ -71,6 +105,8 @@ class YOLODataset(Dataset):
 
         if random.random() < self.mixup_prob:
             image, labels = self.load_mixup(index)
+        elif random.random() < self.cutmix_prob:
+            image, labels = self.load_mosaic_4(index)
         elif random.random() < self.mosaic4prob:
             image, labels = self.load_mosaic_4(index)
         elif random.random() < self.mosaic9prob:
@@ -78,11 +114,12 @@ class YOLODataset(Dataset):
         else:
             image, labels = self.load_image(index)
 
-        if self.phase == "train":
+        if not self.augmentations is None:
             image, labels = augment(image, labels, self.augmentations)
             labels = np.array(labels, dtype=np.int32)
         else:
             image = np.array(image, np.float32)
+        image, labels = cutout(image, labels, p=self.cutout_prob)
         original_image = image.copy()
         image = preprocess_input(image)
 
@@ -148,7 +185,7 @@ class YOLODataset(Dataset):
         return np.asarray(image), labels
 
     def load_mixup(self, index):
-        index2 = random.randint(0, self.length)
+        index2 = random.randint(0, self.length - 1)
         im, labels = self.load_image(index)
         im2, labels2 = self.load_image(index2)
         r = np.random.beta(32.0, 32.0)
@@ -158,6 +195,45 @@ class YOLODataset(Dataset):
         elif len(labels.shape) < 2:
             labels = labels2
         return im, labels
+
+    def load_cutmix(self, index):
+        w, h = self.input_shape
+        s = min(self.input_shape[0] // 2, self.input_shape[1] // 2)
+        xc, yc = [int(random.uniform(s * 2 * 0.25, s * 2 * 0.75)) for _ in range(2)]
+        indexes = [index] + [random.randint(0, self.length - 1) for _ in range(3)]
+        result_image = np.full((s * 2, s * 2, 3), 1, dtype=np.float32)
+        result_labels = []
+        for i, index in enumerate(indexes):
+            image, labels = self.load_image(index)
+            if i == 0:
+                x1a, y1a, x2a, y2a = (max(xc - w, 0), max(yc - h, 0), xc, yc)
+                x1b, y1b, x2b, y2b = (w - (x2a - x1a), h - (y2a - y1a), w, h)
+            elif i == 1:
+                x1a, y1a, x2a, y2a = xc, max(yc - h, 0), min(xc + w, s * 2), yc
+                x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
+            elif i == 2:
+                x1a, y1a, x2a, y2a = max(xc - w, 0), yc, xc, min(s * 2, yc + h)
+                x1b, y1b, x2b, y2b = w - (x2a - x1a), 0, max(xc, w), min(y2a - y1a, h)
+            elif i == 3:
+                x1a, y1a, x2a, y2a = xc, yc, min(xc + w, s * 2), min(s * 2, yc + h)
+                x1b, y1b, x2b, y2b = 0, 0, min(w, x2a - x1a), min(y2a - y1a, h)
+            result_image[y1a:y2a, x1a:x2a] = image[y1b:y2b, x1b:x2b]
+            padw = x1a - x1b
+            padh = y1a - y1b
+            labels[:, 0] += padw
+            labels[:, 1] += padh
+            labels[:, 2] += padw
+            labels[:, 3] += padh
+            result_labels.append(labels)
+        if len(result_labels) > 0:
+            result_labels = np.concatenate(result_labels, 0)
+            clip_coords(result_labels, self.input_shape)
+            box_w = result_labels[:, 2] - result_labels[:, 0]
+            box_h = result_labels[:, 3] - result_labels[:, 1]
+            result_labels = result_labels[np.logical_and(box_w > 1, box_h > 1)]
+        else:
+            result_labels = np.array(result_labels, dtype=np.int32)
+        return result_image, result_labels
 
     def load_mosaic_4(self, index):
         labels4 = []

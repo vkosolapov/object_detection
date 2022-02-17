@@ -68,7 +68,9 @@ class CenternetDataset(YOLODataset):
         num_classes,
         input_shape,
         augmentations=None,
+        cutout_prob=0.0,
         mixup_prob=0.0,
+        cutmix_prob=0.0,
         mosaic4prob=0.0,
         mosaic9prob=0.0,
     ):
@@ -77,7 +79,9 @@ class CenternetDataset(YOLODataset):
             phase,
             input_shape,
             augmentations,
+            cutout_prob,
             mixup_prob,
+            cutmix_prob,
             mosaic4prob,
             mosaic9prob,
         )
