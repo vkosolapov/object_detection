@@ -30,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "029_multi_image_aug_TTA"
+EXPERIMENT_NAME = "029_multi_image_aug"
 wandb.init(sync_tensorboard=True, project="object_detection_", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -112,18 +112,7 @@ if __name__ == "__main__":
             mosaic4prob=0.1,
             mosaic9prob=0.05,
         ),
-        "val": CenternetDataset(
-            datadir,
-            "val",
-            num_classes,
-            image_size,
-            augmentations,
-            cutout_prob=0.05,
-            mixup_prob=0.1,
-            cutmix_prob=0.05,
-            mosaic4prob=0.1,
-            mosaic9prob=0.05,
-        ),
+        "val": CenternetDataset(datadir, "val", num_classes, image_size,),
     }
 
     backbone_args = dict(
