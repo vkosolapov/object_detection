@@ -5,6 +5,11 @@ def offset_to_coord(pred):
     b, c, output_w, output_h = pred.shape
     xv, yv = torch.meshgrid(torch.arange(0, output_w), torch.arange(0, output_h))
     coords = torch.stack([xv, yv]).repeat(b, 1, 1, 1)
+    if pred.is_cuda:
+        device = pred.get_device()
+        coords = coords.to(device)
+    else:
+        coords = coords.cpu()
     return pred + coords
 
 

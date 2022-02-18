@@ -9,7 +9,6 @@ from dataloader import DataLoader
 from scheduler import CyclicCosineDecayLR
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 from torchmetrics.detection.map import MeanAveragePrecision
-from torchmetrics import Precision, Recall
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -92,15 +91,15 @@ class TrainLoop:
             self.running_losses[key] += self.losses[key].item() * self.batch_size
 
         if not phase == "train":
-            preds = []
-            labels = []
+            # preds = []
+            # labels = []
             outputs = self.predictions_postprocessor(
                 self.pred, self.image_size, self.device
             )
-            if self.draw_example:
-                reverted_labels = self.predictions_postprocessor(
-                    self.targets, self.image_size, self.device
-                )
+            # if self.draw_example:
+            reverted_labels = self.predictions_postprocessor(
+                self.targets, self.image_size, self.device
+            )
             self.labels = self.labels.cpu()
             for i in range(len(outputs)):
                 labels_count = self.labels_count[i]
@@ -116,22 +115,18 @@ class TrainLoop:
                         "scores": torch.Tensor(),
                         "labels": torch.Tensor(),
                     }
-                preds.append(pred)
-                if not self.labels[i] is None:
+                # preds.append(pred)
+                if not reverted_labels[i] is None:
                     label = {
-                        "boxes": torch.Tensor(self.labels[i, :labels_count, :4]).view(
-                            labels_count, 4
-                        ),
-                        "labels": torch.Tensor(self.labels[i, :labels_count, 4]).view(
-                            labels_count
-                        ),
+                        "boxes": torch.Tensor(reverted_labels[i][:, :4]),
+                        "labels": torch.Tensor(reverted_labels[i][:, 4]),
                     }
                 else:
                     label = {
                         "boxes": torch.Tensor(),
                         "labels": torch.Tensor(),
                     }
-                labels.append(label)
+                # labels.append(label)
                 if self.draw_example:
                     image = torchvision.utils.draw_bounding_boxes(
                         self.original_inputs[i]
@@ -152,14 +147,19 @@ class TrainLoop:
                     print(self.labels[i, :labels_count, :4])
                     print(torch.from_numpy(reverted_labels[i][:, :4]))
                     self.draw_example = False
-            self.metrics_values = {}
-            for key in self.metrics.keys():
-                if isinstance(self.metrics[key], MeanAveragePrecision):
-                    self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
-                else:
-                    self.metrics_values[key] = self.metrics[key](
-                        preds["labels"], labels["labels"]
-                    )
+                self.metrics_values = {}
+                for key in self.metrics.keys():
+                    if isinstance(self.metrics[key], MeanAveragePrecision):
+                        self.metrics_values[key] = self.metrics[key]([pred], [label])[
+                            "map"
+                        ]
+                    else:
+                        self.metrics_values[key] = self.metrics[key](
+                            pred["labels"][:labels_count].unsqueeze(0),
+                            label["labels"][:labels_count]
+                            .unsqueeze(0)
+                            .type(torch.uint8),
+                        )
 
     def log_minibatch(self, phase, epoch, minibatch):
         dataset_size = self.data_loaders[phase].dataset_size

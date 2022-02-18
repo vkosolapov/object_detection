@@ -20,7 +20,7 @@ import torch.optim as optim
 from optimizer import Ranger
 from scheduler import CyclicCosineDecayLR
 from torchmetrics.detection.map import MeanAveragePrecision
-from torchmetrics import Precision, Recall
+from torchmetrics import Precision, Recall, Accuracy
 
 from detectors.centernet.dataset import CenternetDataset, postprocess_predictions
 from detectors.centernet.model import CenterNet
@@ -180,6 +180,7 @@ if __name__ == "__main__":
             max_detection_thresholds=[100],
             class_metrics=False,
         ),
+        # "Accuracy": Accuracy(num_classes=num_classes, average="micro"),
         # "Precision": Precision(num_classes=num_classes, average="macro"),
         # "Recall": Recall(num_classes=num_classes, average="macro"),
     }
