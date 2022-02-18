@@ -8,7 +8,6 @@ import torchvision
 from dataloader import DataLoader
 from scheduler import CyclicCosineDecayLR
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
-from torchmetrics.detection.map import MeanAveragePrecision
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -149,17 +148,7 @@ class TrainLoop:
                     self.draw_example = False
                 self.metrics_values = {}
                 for key in self.metrics.keys():
-                    if isinstance(self.metrics[key], MeanAveragePrecision):
-                        self.metrics_values[key] = self.metrics[key]([pred], [label])[
-                            "map"
-                        ]
-                    else:
-                        self.metrics_values[key] = self.metrics[key](
-                            pred["labels"][:labels_count].unsqueeze(0),
-                            label["labels"][:labels_count]
-                            .unsqueeze(0)
-                            .type(torch.uint8),
-                        )
+                    self.metrics_values[key] = self.metrics[key]([pred], [label])["map"]
 
     def log_minibatch(self, phase, epoch, minibatch):
         dataset_size = self.data_loaders[phase].dataset_size
