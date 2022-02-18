@@ -90,15 +90,15 @@ class TrainLoop:
             self.running_losses[key] += self.losses[key].item() * self.batch_size
 
         if not phase == "train":
-            # preds = []
-            # labels = []
+            preds = []
+            labels = []
             outputs = self.predictions_postprocessor(
                 self.pred, self.image_size, self.device
             )
-            # if self.draw_example:
-            reverted_labels = self.predictions_postprocessor(
-                self.targets, self.image_size, self.device
-            )
+            if self.draw_example:
+                reverted_labels = self.predictions_postprocessor(
+                    self.targets, self.image_size, self.device
+                )
             self.labels = self.labels.cpu()
             for i in range(len(outputs)):
                 labels_count = self.labels_count[i]
@@ -114,18 +114,22 @@ class TrainLoop:
                         "scores": torch.Tensor(),
                         "labels": torch.Tensor(),
                     }
-                # preds.append(pred)
-                if not reverted_labels[i] is None:
+                preds.append(pred)
+                if not self.labels[i] is None:
                     label = {
-                        "boxes": torch.Tensor(reverted_labels[i][:, :4]),
-                        "labels": torch.Tensor(reverted_labels[i][:, 4]),
+                        "boxes": torch.Tensor(self.labels[i, :labels_count, :4]).view(
+                            labels_count, 4
+                        ),
+                        "labels": torch.Tensor(self.labels[i, :labels_count, 4]).view(
+                            labels_count
+                        ),
                     }
                 else:
                     label = {
                         "boxes": torch.Tensor(),
                         "labels": torch.Tensor(),
                     }
-                # labels.append(label)
+                labels.append(label)
                 if self.draw_example:
                     image = torchvision.utils.draw_bounding_boxes(
                         self.original_inputs[i]
@@ -146,9 +150,9 @@ class TrainLoop:
                     print(self.labels[i, :labels_count, :4])
                     print(torch.from_numpy(reverted_labels[i][:, :4]))
                     self.draw_example = False
-                self.metrics_values = {}
-                for key in self.metrics.keys():
-                    self.metrics_values[key] = self.metrics[key]([pred], [label])["map"]
+            self.metrics_values = {}
+            for key in self.metrics.keys():
+                self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
 
     def log_minibatch(self, phase, epoch, minibatch):
         dataset_size = self.data_loaders[phase].dataset_size
