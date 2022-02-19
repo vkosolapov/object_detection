@@ -130,7 +130,7 @@ class TrainLoop:
                         "labels": torch.Tensor(),
                     }
                 labels.append(label)
-                if self.draw_example:
+                if self.draw_example and not reverted_labels[i] is None:
                     image = torchvision.utils.draw_bounding_boxes(
                         self.original_inputs[i]
                         .permute(2, 0, 1)
