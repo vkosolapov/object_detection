@@ -30,7 +30,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "003_fix_postprocessing"
+EXPERIMENT_NAME = "004_CIoU_loss"
 wandb.init(sync_tensorboard=True, project="object_detection_new", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -147,12 +147,12 @@ if __name__ == "__main__":
             num_classes=num_classes,
             one_hot_label_format=True,
             gamma=2.0,
-            # alpha=0.999,
-            # smoothing=0.1,
+            alpha=0.999,
+            smoothing=0.1,
         ),
         "size": None,  # RegressionLossWithMask(smooth=True),
         "offset": None,  # RegressionLossWithMask(smooth=True),
-        "box": IoULossWithMask(CIoU=False),
+        "box": IoULossWithMask(CIoU=True),
     }
     criterion_weights = {
         "cls": 100.0,
