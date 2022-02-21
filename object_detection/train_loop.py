@@ -132,7 +132,7 @@ class TrainLoop:
                         "labels": torch.Tensor(),
                     }
                 labels.append(label)
-                if self.draw_example and not reverted_labels[i] is None:
+                if self.draw_example:
                     image = torchvision.utils.draw_bounding_boxes(
                         self.original_inputs[i]
                         .permute(2, 0, 1)
@@ -140,18 +140,36 @@ class TrainLoop:
                         .cpu(),
                         self.labels[i, :labels_count, :4],
                     )
-                    self.writer.add_image("preprocessed_image", image)
-                    image = torchvision.utils.draw_bounding_boxes(
-                        self.original_inputs[i]
-                        .permute(2, 0, 1)
-                        .type(torch.uint8)
-                        .cpu(),
-                        torch.from_numpy(reverted_labels[i][:, :4]),
-                    )
-                    self.writer.add_image("postprocessed_image", image)
+                    self.writer.add_image(f"preprocessed_image_{self.epoch}", image)
                     print(self.labels[i, :labels_count, :4])
-                    print(torch.from_numpy(reverted_labels[i][:, :4]))
+                    if not reverted_labels[i] is None:
+                        image = torchvision.utils.draw_bounding_boxes(
+                            self.original_inputs[i]
+                            .permute(2, 0, 1)
+                            .type(torch.uint8)
+                            .cpu(),
+                            torch.from_numpy(reverted_labels[i][:, :4]),
+                        )
+                        self.writer.add_image(
+                            f"postprocessed_image_{self.epoch}", image
+                        )
+                        print(torch.from_numpy(reverted_labels[i][:, :4]))
+                    else:
+                        print("Empty reverted labels")
+                    if not outputs[i] is None:
+                        image = torchvision.utils.draw_bounding_boxes(
+                            self.original_inputs[i]
+                            .permute(2, 0, 1)
+                            .type(torch.uint8)
+                            .cpu(),
+                            torch.from_numpy(outputs[i][:, :4]),
+                        )
+                        self.writer.add_image(f"predictions_{self.epoch}", image)
+                        print(outputs[i][:, :4].shape)
+                    else:
+                        print("Empty predictions")
                     self.draw_example = False
+
             targets_cls = (
                 self.targets[0].type(torch.int32).permute(0, 2, 3, 1).reshape([-1, 6])
             )
@@ -248,6 +266,8 @@ class TrainLoop:
         self.writer.close()
 
     def train_epoch(self, epoch):
+        self.epoch = epoch
+        self.draw_example = True
         self.model.train()
         self.running_loss = 0.0
         for key in self.criterion.keys():
