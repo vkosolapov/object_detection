@@ -55,8 +55,9 @@ def draw_gaussian(heatmap, center, radius, k=1):
         radius - left : radius + right, radius - top : radius + bottom
     ]
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
-        masked_heatmap = np.maximum(masked_heatmap, masked_gaussian * k)
-        heatmap[x - left : x + right, y - top : y + bottom] = masked_heatmap
+        # masked_heatmap = np.maximum(masked_heatmap, masked_gaussian * k)
+        # heatmap[x - left : x + right, y - top : y + bottom] = masked_heatmap
+        heatmap[x, y] = 1
     return heatmap
 
 

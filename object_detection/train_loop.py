@@ -8,6 +8,8 @@ import torchvision
 from dataloader import DataLoader
 from scheduler import CyclicCosineDecayLR
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
+from torchmetrics.detection.map import MeanAveragePrecision
+from torchmetrics import Precision, Recall
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -150,9 +152,23 @@ class TrainLoop:
                     print(self.labels[i, :labels_count, :4])
                     print(torch.from_numpy(reverted_labels[i][:, :4]))
                     self.draw_example = False
+            targets_cls = (
+                self.targets[0].type(torch.int32).permute(0, 2, 3, 1).reshape([-1, 6])
+            )
+            _, targets_cls = torch.max(targets_cls, dim=-1)
+            preds_cls = (
+                torch.softmax(self.pred[0], dim=1).permute(0, 2, 3, 1).reshape([-1, 6])
+            )
             self.metrics_values = {}
             for key in self.metrics.keys():
-                self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
+                if isinstance(self.metrics[key], MeanAveragePrecision):
+                    self.metrics_values[key] = self.metrics[key](preds, labels)["map"]
+                elif isinstance(self.metrics[key], Precision) or isinstance(
+                    self.metrics[key], Recall
+                ):
+                    self.metrics_values[key] = self.metrics[key](
+                        preds_cls.cpu(), targets_cls.cpu()
+                    )
 
     def log_minibatch(self, phase, epoch, minibatch):
         dataset_size = self.data_loaders[phase].dataset_size
@@ -187,7 +203,10 @@ class TrainLoop:
             self.epoch_losses[key] = self.running_losses[key] / dataset_size
         if not phase == "train":
             for key in self.metrics.keys():
-                self.metrics_values[key] = self.metrics[key].compute()["map"]
+                if isinstance(self.metrics[key], MeanAveragePrecision):
+                    self.metrics_values[key] = self.metrics[key].compute()["map"]
+                else:
+                    self.metrics_values[key] = self.metrics[key].compute()
                 self.metrics[key].reset()
 
     def log_epoch(self, phase, epoch):

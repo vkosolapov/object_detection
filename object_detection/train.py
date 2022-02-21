@@ -20,6 +20,7 @@ import torch.optim as optim
 from optimizer import Ranger
 from scheduler import CyclicCosineDecayLR
 from torchmetrics.detection.map import MeanAveragePrecision
+from torchmetrics import Precision, Recall
 
 from detectors.centernet.dataset import CenternetDataset, postprocess_predictions
 from detectors.centernet.model import CenterNet
@@ -30,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "004_CIoU_loss"
+EXPERIMENT_NAME = "005_classification_metrics"
 wandb.init(sync_tensorboard=True, project="object_detection_new", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -179,6 +180,8 @@ if __name__ == "__main__":
             max_detection_thresholds=[100],
             class_metrics=False,
         ),
+        "Precision": Precision(num_classes=num_classes, threshold=0.7, average="macro"),
+        "Recall": Recall(num_classes=num_classes, threshold=0.7, average="macro"),
     }
     main_metric = "mAP@0.5:0.95"
 
