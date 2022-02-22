@@ -175,7 +175,7 @@ def decode_bbox(pred_cls, pred_size, pred_offset, confidence, device):
     b, c, output_w, output_h = pred_cls.shape
     detects = []
     for batch in range(b):
-        heat_map = torch.softmax(pred_cls[batch], dim=0)
+        heat_map = torch.tanh(pred_cls[batch])
         heat_map = heat_map.permute(1, 2, 0).view([-1, c])
         pred_wh = pred_size[batch].permute(1, 2, 0).view([-1, 2])
         pred_off = pred_offset[batch].permute(1, 2, 0).view([-1, 2])
