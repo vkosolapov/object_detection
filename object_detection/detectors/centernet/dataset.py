@@ -285,7 +285,7 @@ def postprocess(
 
 
 def postprocess_predictions(pred, image_size, device):
-    outputs = decode_bbox(pred[0], pred[1], pred[2], confidence=0.7, device=device,)
+    outputs = decode_bbox(pred[0], pred[1], pred[2], confidence=0.9, device=device,)
     outputs = postprocess(
         outputs,
         need_nms=False,
