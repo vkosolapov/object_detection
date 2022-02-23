@@ -175,7 +175,7 @@ def decode_bbox(pred_cls, pred_size, pred_offset, confidence, device):
     b, c, output_w, output_h = pred_cls.shape
     detects = []
     for batch in range(b):
-        heat_map = torch.tanh(pred_cls[batch])
+        heat_map = torch.sigmoid(pred_cls[batch])
         heat_map = heat_map.permute(1, 2, 0).view([-1, c])
         pred_wh = pred_size[batch].permute(1, 2, 0).view([-1, 2])
         pred_off = pred_offset[batch].permute(1, 2, 0).view([-1, 2])
@@ -285,7 +285,7 @@ def postprocess(
 
 
 def postprocess_predictions(pred, image_size, device):
-    outputs = decode_bbox(pred[0], pred[1], pred[2], confidence=0.9, device=device,)
+    outputs = decode_bbox(pred[0], pred[1], pred[2], confidence=0.5, device=device,)
     outputs = postprocess(
         outputs,
         need_nms=False,
