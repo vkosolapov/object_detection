@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "009_classification_loss"
+EXPERIMENT_NAME = "010_change_focal_loss"
 wandb.init(sync_tensorboard=True, project="object_detection_new", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -147,8 +147,8 @@ if __name__ == "__main__":
         "cls": LabelSmoothingFocalLoss(
             num_classes=num_classes,
             one_hot_label_format=True,
-            gamma=3.0,
-            # alpha=0.999,
+            gamma=2.0,
+            # alpha=0.75,
             # smoothing=0.1,
         ),
         "size": None,  # RegressionLossWithMask(smooth=True),
