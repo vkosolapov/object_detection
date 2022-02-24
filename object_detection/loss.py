@@ -30,9 +30,9 @@ class LabelSmoothingFocalLoss(nn.Module):
             raise ValueError("The number of classes must be 2 or higher")
         if self._gamma < 0:
             raise ValueError("Gamma must be 0 or higher")
-        if self._alpha is not None:
-            if self._alpha <= 0 or self._alpha >= 1:
-                raise ValueError("Alpha must be 0 <= alpha <= 1")
+        # if self._alpha is not None:
+        #    if self._alpha <= 0 or self._alpha >= 1:
+        #        raise ValueError("Alpha must be 0 <= alpha <= 1")
 
     def forward(self, logits, label):
         return sigmoid_focal_loss(
