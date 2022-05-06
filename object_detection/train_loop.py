@@ -177,7 +177,7 @@ class TrainLoop:
                 self.targets[0].type(torch.int32).permute(0, 2, 3, 1).reshape([-1, 6])
             )
             _, targets_cls = torch.max(targets_cls, dim=-1)
-            preds_cls = torch.sigmoid(self.pred[0]).permute(0, 2, 3, 1).reshape([-1, 6])
+            preds_cls = torch.tanh(self.pred[0]).permute(0, 2, 3, 1).reshape([-1, 6])
             self.metrics_values = {}
             for key in self.metrics.keys():
                 if isinstance(self.metrics[key], MeanAveragePrecision):

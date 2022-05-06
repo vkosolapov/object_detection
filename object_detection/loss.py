@@ -10,8 +10,8 @@ class LabelSmoothingFocalLoss(nn.Module):
         self,
         num_classes: int,
         one_hot_label_format=False,
-        gamma: int = 2,
-        alpha: float = 0.25,
+        gamma: int = 0,
+        alpha: float = None,
         smoothing: float = 0.0,
         size_average: bool = True,
         ignore_index: int = None,
@@ -35,9 +35,9 @@ class LabelSmoothingFocalLoss(nn.Module):
         #        raise ValueError("Alpha must be 0 <= alpha <= 1")
 
     def forward(self, logits, label):
-        return sigmoid_focal_loss(
-            logits, label, alpha=self._alpha, gamma=self._gamma, reduction="mean"
-        )
+        # return sigmoid_focal_loss(
+        #    logits, label, alpha=self._alpha, gamma=self._gamma, reduction="mean"
+        # )
 
         logits = logits.float()
         label = label.long()

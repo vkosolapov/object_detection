@@ -43,7 +43,7 @@ if __name__ == "__main__":
     batch_size = 32
     num_epochs = 500
     early_stopping = 100
-    learning_rate = 0.001
+    learning_rate = 0.01
     mixed_precision = True
     checkpoint_file = None  # "checkpoints/checkpoint_139.pth",
 
@@ -147,16 +147,16 @@ if __name__ == "__main__":
         "cls": LabelSmoothingFocalLoss(
             num_classes=num_classes,
             one_hot_label_format=True,
-            gamma=2.0,
-            alpha=0.9,
-            # smoothing=0.1,
+            gamma=4.0,
+            # alpha=0.999,
+            smoothing=0.1,
         ),
         "size": None,  # RegressionLossWithMask(smooth=False),
         "offset": None,  # RegressionLossWithMask(smooth=False),
         "box": IoULossWithMask(CIoU=True),
     }
     criterion_weights = {
-        "cls": 1.0,
+        "cls": 100.0,
         "size": None,  # 0.01,
         "offset": None,  # 1.0,
         "box": 0.01,
@@ -180,8 +180,8 @@ if __name__ == "__main__":
             max_detection_thresholds=[100],
             class_metrics=False,
         ),
-        "Precision": Precision(num_classes=num_classes, threshold=0.5, average="macro"),
-        "Recall": Recall(num_classes=num_classes, threshold=0.5, average="macro"),
+        "Precision": Precision(num_classes=num_classes, threshold=0.9, average="macro"),
+        "Recall": Recall(num_classes=num_classes, threshold=0.9, average="macro"),
     }
     main_metric = "mAP@0.5:0.95"
 
