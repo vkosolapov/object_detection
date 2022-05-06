@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "011_test"
+EXPERIMENT_NAME = "012_losses_and_augs"
 wandb.init(sync_tensorboard=True, project="object_detection_new", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -66,7 +66,7 @@ if __name__ == "__main__":
                     A.VerticalFlip(),
                     A.Transpose(),
                 ],
-                p=0.0,
+                p=1.0,
             ),
             A.OneOf(
                 [
@@ -79,7 +79,7 @@ if __name__ == "__main__":
                         hue_shift_limit=20, sat_shift_limit=20, val_shift_limit=20,
                     ),
                 ],
-                p=0.0,
+                p=1.0,
             ),
             A.OneOf(
                 [
@@ -147,19 +147,19 @@ if __name__ == "__main__":
         "cls": LabelSmoothingFocalLoss(
             num_classes=num_classes,
             one_hot_label_format=True,
-            gamma=0.0,
-            alpha=0.0,
+            gamma=2.0,
+            alpha=0.9,
             # smoothing=0.1,
         ),
-        "size": RegressionLossWithMask(smooth=False),
-        "offset": RegressionLossWithMask(smooth=False),
-        "box": None,  # IoULossWithMask(CIoU=True),
+        "size": None,  # RegressionLossWithMask(smooth=False),
+        "offset": None,  # RegressionLossWithMask(smooth=False),
+        "box": IoULossWithMask(CIoU=True),
     }
     criterion_weights = {
         "cls": 1.0,
-        "size": 0.01,
-        "offset": 1.0,
-        "box": None,  # 0.0,
+        "size": None,  # 0.01,
+        "offset": None,  # 1.0,
+        "box": 0.01,
     }
 
     losses_computer = compute_losses
