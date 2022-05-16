@@ -148,7 +148,7 @@ if __name__ == "__main__":
             num_classes=num_classes,
             one_hot_label_format=True,
             gamma=4.0,
-            alpha=0.0,
+            alpha=0.5,
             smoothing=0.0,
         ),
         "size": None,  # RegressionLossWithMask(smooth=False),
