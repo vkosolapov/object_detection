@@ -35,9 +35,9 @@ class LabelSmoothingFocalLoss(nn.Module):
         #        raise ValueError("Alpha must be 0 <= alpha <= 1")
 
     def forward(self, logits, label):
-        return sigmoid_focal_loss(
-            logits, label, alpha=self._alpha, gamma=self._gamma, reduction="mean"
-        )
+        # return sigmoid_focal_loss(
+        #    logits, label, alpha=self._alpha, gamma=self._gamma, reduction="mean"
+        # )
 
         logits = logits.float()
         label = label.long()

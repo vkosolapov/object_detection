@@ -149,7 +149,7 @@ if __name__ == "__main__":
             one_hot_label_format=True,
             gamma=4.0,
             alpha=0.0,
-            smoothing=0.1,
+            smoothing=0.0,
         ),
         "size": None,  # RegressionLossWithMask(smooth=False),
         "offset": None,  # RegressionLossWithMask(smooth=False),
