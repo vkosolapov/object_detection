@@ -147,7 +147,7 @@ if __name__ == "__main__":
         "cls": LabelSmoothingFocalLoss(
             num_classes=num_classes,
             one_hot_label_format=True,
-            gamma=4.0,
+            gamma=2.0,
             alpha=0.999,
             smoothing=0.0,
         ),
