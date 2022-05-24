@@ -275,7 +275,12 @@ class TrainLoop:
             if self.criterion[key] is None:
                 continue
             self.running_losses[key] = 0.0
+        first_batch = None
         for (i, batch) in tqdm(enumerate(self.data_loaders["train"].data_loader)):
+            # if first_batch is None:
+            #    first_batch = batch
+            # else:
+            #    batch = first_batch
             with ExitStack() as stack:
                 if self.mixed_precision:
                     stack.enter_context(autocast())
@@ -334,7 +339,12 @@ class TrainLoop:
             if self.criterion[key] is None:
                 continue
             self.running_losses[key] = 0.0
+        first_batch = None
         for (i, batch) in tqdm(enumerate(self.data_loaders["val"].data_loader)):
+            # if first_batch is None:
+            #    first_batch = batch
+            # else:
+            #    batch = first_batch
             with ExitStack() as stack:
                 if self.mixed_precision:
                     stack.enter_context(autocast())
