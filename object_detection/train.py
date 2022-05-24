@@ -31,7 +31,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
-EXPERIMENT_NAME = "014_one_batch_test"
+EXPERIMENT_NAME = "015_put_it_all_together"
 wandb.init(sync_tensorboard=True, project="object_detection_new", name=EXPERIMENT_NAME)
 
 if __name__ == "__main__":
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     datadir = "data/AFO/PART_1/PART_1"
     num_classes = 6
     image_size = 640
-    batch_size = 32
+    batch_size = 8
     num_epochs = 500
     early_stopping = 100
     learning_rate = 0.01
@@ -93,7 +93,7 @@ if __name__ == "__main__":
             ),
             A.OneOf(
                 [A.GaussNoise(p=0.5), A.Blur(p=0.5), CoarseDropout(max_holes=5, p=0.0)],
-                p=0.0,
+                p=0.01,
             ),
         ],
         p=1.0,
@@ -107,11 +107,11 @@ if __name__ == "__main__":
             num_classes,
             image_size,
             augmentations,
-            cutout_prob=0.0,
-            mixup_prob=0.0,
-            cutmix_prob=0.0,
-            mosaic4prob=0.0,
-            mosaic9prob=0.0,
+            cutout_prob=0.05,
+            mixup_prob=0.05,
+            cutmix_prob=0.05,
+            mosaic4prob=0.05,
+            mosaic9prob=0.05,
         ),
         "val": CenternetDataset(datadir, "val", num_classes, image_size),
     }
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     backbone_model = _create_resnet(
         "resnet18", num_classes=num_classes, pretrained=False, **backbone_args
     )
-    backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
+    # backbone_model = create_model("resnet18", num_classes=num_classes, pretrained=True)
     backbone_model = TIMMBackbone(backbone_model)
     head_model = CenterNet(
         num_classes, backbone_model,  # act_layer=nn.Mish, norm_layer=CBatchNorm2d,
@@ -149,7 +149,7 @@ if __name__ == "__main__":
             one_hot_label_format=True,
             gamma=8.0,
             alpha=0.999,
-            smoothing=0.0,
+            smoothing=0.1,
         ),
         "size": None,  # RegressionLossWithMask(smooth=False),
         "offset": None,  # RegressionLossWithMask(smooth=False),
@@ -197,8 +197,8 @@ if __name__ == "__main__":
         restart_interval=50,
         restart_interval_multiplier=1.2,
     )
-    scheduler = None
-    swa = False
+    # scheduler = None
+    swa = True
 
     loop = TrainLoop(
         experiment_name=EXPERIMENT_NAME,
